@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.6.0 — 2026-02-22
+
+### Added
+
+- Telemetry system: `TelemetrySnapshot`, `TelemetryWindowReport`, and standalone `telemetry` CLI command with `--window-sec` support
+- Shannon entropy and min-entropy fields in `SourceAnalysis`
+- Entropy-gated source interpretation with grade-based thresholds
+- FIFO cleanup on SIGINT/SIGTERM via `OnceLock` signal handler
+
+### Changed
+
+- Merged `device` command into `stream --fifo`
+- Merged `report` command into `analyze --report`
+- Graduated bench reliability penalty from binary 0.8x to scaled `1.0 - 0.5 * failure_rate`
+- Probe mode now respects `--conditioning` and `--samples-per-round`, uses `grade_min_entropy`
+- Case-insensitive conditioning mode parsing
+- TUI chart mode persists when switching sources instead of resetting to RandomWalk
+- DRY refactoring: extracted `filter_sources`, `print_cross_correlation`, `write_json`, `unix_timestamp_now`, `parse_conditioning` into shared module
+
+### Fixed
+
+- Serial test delta2 computation (was dead code)
+- `stability_index` returning NaN for all-zero sample sets
+- Duplicate sentence fragment in `counter_beat.rs` physics text
+- Stale documentation references to removed `device` and `report` commands
+
 ## 0.5.1 — 2026-02-18
 
 ### Changed
