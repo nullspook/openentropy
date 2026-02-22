@@ -1485,7 +1485,7 @@ fn collect_linux_freq_metrics(out: &mut Vec<TelemetryMetric>) {
     }
 
     let mut min_hz = f64::INFINITY;
-    let mut max_hz = 0.0;
+    let mut max_hz: f64 = 0.0;
     let mut sum_hz = 0.0;
     for (_, hz) in &values_hz {
         min_hz = min_hz.min(*hz);
