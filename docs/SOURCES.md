@@ -1,6 +1,6 @@
 # Entropy Source Catalog
 
-47 sources across 12 mechanism-based categories, each exploiting a different physical phenomenon inside your computer. Every source implements the `EntropySource` trait and produces raw `Vec<u8>` samples that are fed into the entropy pool.
+45 sources across 12 mechanism-based categories, each exploiting a different physical phenomenon inside your computer. Every source implements the `EntropySource` trait and produces raw `Vec<u8>` samples that are fed into the entropy pool.
 
 ## Source Summary
 
@@ -11,48 +11,46 @@
 | 3 | `sleep_jitter` | Scheduling | OS scheduler wake-up jitter | ~400 b/s | All |
 | 4 | `sysctl` | System | Kernel counter fluctuations | ~2000 b/s | macOS, Linux |
 | 5 | `vmstat` | System | VM subsystem page counters | ~500 b/s | macOS, Linux |
-| 6 | `process` | System | Process table snapshot hash | ~300 b/s | All |
+| 6 | `process` | System | Process table snapshot hash | ~300 b/s | macOS |
 | 7 | `dns_timing` | Network | DNS resolution latency jitter | ~400 b/s | All |
 | 8 | `tcp_connect` | Network | TCP handshake timing variance | ~300 b/s | All |
 | 9 | `wifi_rssi` | Network | WiFi signal strength noise floor | ~200 b/s | macOS |
 | 10 | `disk_io` | IO | Block device I/O timing jitter | ~500 b/s | All |
-| 11 | `memory_timing` | Timing | DRAM access timing variations | ~800 b/s | All |
-| 12 | `gpu_timing` | GPU | GPU compute dispatch jitter | ~600 b/s | macOS (Metal) |
-| 13 | `audio_noise` | Sensor | Microphone ADC thermal noise (Johnson-Nyquist) | ~10000 b/s | Requires mic |
-| 14 | `camera_noise` | Sensor | Camera sensor noise (read noise + dark current) | ~4000 b/s | Requires camera |
-| 15 | `bluetooth_noise` | Sensor | BLE ambient RF environment | ~200 b/s | macOS |
-| 17 | `ioregistry` | System | IOKit registry value mining | ~500 b/s | macOS |
-| 18 | `dram_row_buffer` | Timing | DRAM row buffer hit/miss timing | ~3000 b/s | All |
-| 19 | `cache_contention` | Timing | L1/L2 cache contention timing | ~2500 b/s | All |
-| 20 | `page_fault_timing` | Timing | mmap/munmap page fault latency | ~1500 b/s | All |
-| 21 | `speculative_execution` | Microarch | Branch predictor state timing | ~2000 b/s | All |
-| 22 | `cpu_io_beat` | Composite | CPU vs I/O clock beat frequency | ~300 b/s | All |
-| 23 | `cpu_memory_beat` | Composite | CPU vs memory controller beat | ~400 b/s | All |
-| 24 | `compression_timing` | Signal | zlib compression timing oracle | ~300 b/s | All |
-| 26 | `hash_timing` | Signal | SHA-256 timing data-dependency | ~400 b/s | All |
-| 27 | `dispatch_queue` | Scheduling | Thread pool scheduling jitter | ~500 b/s | macOS |
-| 28 | `vm_page_timing` | Timing | Mach VM page allocation timing | ~400 b/s | macOS |
-| 30 | `spotlight_timing` | Signal | Spotlight metadata query timing | ~200 b/s | macOS |
-| 31 | `amx_timing` | Microarch | Apple AMX coprocessor dispatch jitter | ~500 b/s | macOS (ARM) |
-| 32 | `thread_lifecycle` | Scheduling | pthread create/join cycle timing | ~400 b/s | All |
-| 33 | `mach_ipc` | IPC | Mach port IPC allocation timing | ~300 b/s | macOS |
-| 34 | `tlb_shootdown` | Microarch | mprotect() TLB invalidation IPI latency | ~400 b/s | All |
-| 35 | `pipe_buffer` | IPC | Kernel zone allocator via pipe lifecycle | ~200 b/s | All |
-| 36 | `kqueue_events` | IPC | BSD kqueue event multiplexing jitter | ~300 b/s | macOS |
-| 37 | `dvfs_race` | Microarch | Cross-core DVFS frequency race | ~500 b/s | All |
-| 38 | `cas_contention` | Microarch | Multi-thread atomic CAS arbitration | ~200 b/s | All |
-| 39 | `keychain_timing` | IPC | macOS Keychain Services API timing | ~300 b/s | macOS |
-| 40 | `denormal_timing` | Thermal | Denormal FPU micropower thermal noise | ~3000 b/s | All |
-| 41 | `audio_pll_timing` | Thermal | Audio PLL clock drift (independent crystal) | ~4000 b/s | macOS |
-| 42 | `usb_timing` | IO | USB bus transaction timing jitter | ~2000 b/s | macOS |
-| 43 | `counter_beat` | Thermal | Two-oscillator beat: CPU 24 MHz vs audio PLL | ~2000 b/s | macOS (ARM) |
-| 44 | `gpu_divergence` | GPU | GPU warp/SIMD divergence timing variance | ~500 b/s | macOS (Metal) |
-| 45 | `iosurface_crossing` | GPU | IOSurface CPU↔GPU memory domain crossing | ~500 b/s | macOS |
-| 46 | `fsync_journal` | IO | APFS journal commit timing (full storage stack) | ~200 b/s | All |
-| 47 | `nvme_latency` | IO | NVMe command submission/completion timing | ~3000 b/s | macOS |
-| 48 | `pdn_resonance` | Thermal | Power delivery network LC resonance noise | ~3000 b/s | All (ARM) |
-| 49 | `display_pll` | Thermal | Display PLL phase noise (~533 MHz pixel clock) | ~2500 b/s | macOS (ARM) |
-| 50 | `pcie_pll` | Thermal | PCIe PHY PLL jitter (Thunderbolt/PCIe clock domains) | ~2000 b/s | macOS (ARM) |
+| 11 | `audio_noise` | Sensor | Microphone ADC thermal noise (Johnson-Nyquist) | ~10000 b/s | Requires mic |
+| 12 | `camera_noise` | Sensor | Camera sensor noise (read noise + dark current) | ~4000 b/s | Requires camera |
+| 13 | `bluetooth_noise` | Sensor | BLE ambient RF environment | ~200 b/s | macOS |
+| 14 | `ioregistry` | System | IOKit registry value mining | ~500 b/s | macOS |
+| 15 | `dram_row_buffer` | Timing | DRAM row buffer hit/miss timing | ~3000 b/s | All |
+| 16 | `cache_contention` | Timing | L1/L2 cache contention timing | ~2500 b/s | All |
+| 17 | `page_fault_timing` | Timing | mmap/munmap page fault latency | ~1500 b/s | All |
+| 18 | `speculative_execution` | Microarch | Branch predictor state timing | ~2000 b/s | All |
+| 19 | `cpu_io_beat` | Composite | CPU vs I/O clock beat frequency | ~300 b/s | All |
+| 20 | `cpu_memory_beat` | Composite | CPU vs memory controller beat | ~400 b/s | All |
+| 21 | `compression_timing` | Signal | zlib compression timing oracle | ~300 b/s | All |
+| 22 | `hash_timing` | Signal | SHA-256 timing data-dependency | ~400 b/s | All |
+| 23 | `dispatch_queue` | Scheduling | Thread pool scheduling jitter | ~500 b/s | macOS |
+| 24 | `vm_page_timing` | Timing | Mach VM page allocation timing | ~400 b/s | All |
+| 25 | `spotlight_timing` | Signal | Spotlight metadata query timing | ~200 b/s | macOS |
+| 26 | `amx_timing` | Microarch | Apple AMX coprocessor dispatch jitter | ~500 b/s | macOS (ARM) |
+| 27 | `thread_lifecycle` | Scheduling | pthread create/join cycle timing | ~400 b/s | All |
+| 28 | `mach_ipc` | IPC | Mach port IPC allocation timing | ~300 b/s | macOS |
+| 29 | `tlb_shootdown` | Microarch | mprotect() TLB invalidation IPI latency | ~400 b/s | macOS |
+| 30 | `pipe_buffer` | IPC | Kernel zone allocator via pipe lifecycle | ~200 b/s | macOS |
+| 31 | `kqueue_events` | IPC | BSD kqueue event multiplexing jitter | ~300 b/s | macOS |
+| 32 | `dvfs_race` | Microarch | Cross-core DVFS frequency race | ~500 b/s | All |
+| 33 | `cas_contention` | Microarch | Multi-thread atomic CAS arbitration | ~200 b/s | All |
+| 34 | `keychain_timing` | IPC | macOS Keychain Services API timing | ~300 b/s | macOS |
+| 35 | `denormal_timing` | Thermal | Denormal FPU micropower thermal noise | ~3000 b/s | All |
+| 36 | `audio_pll_timing` | Thermal | Audio PLL clock drift (independent crystal) | ~4000 b/s | macOS |
+| 37 | `usb_timing` | IO | USB bus transaction timing jitter | ~2000 b/s | macOS |
+| 38 | `counter_beat` | Thermal | Two-oscillator beat: CPU 24 MHz vs audio PLL | ~2000 b/s | macOS (ARM) |
+| 39 | `gpu_divergence` | GPU | GPU warp/SIMD divergence timing variance | ~500 b/s | macOS (Metal) |
+| 40 | `iosurface_crossing` | GPU | IOSurface CPU↔GPU memory domain crossing | ~500 b/s | macOS |
+| 41 | `fsync_journal` | IO | APFS journal commit timing (full storage stack) | ~200 b/s | All |
+| 42 | `nvme_latency` | IO | NVMe command submission/completion timing | ~3000 b/s | macOS |
+| 43 | `pdn_resonance` | Thermal | Power delivery network LC resonance noise | ~3000 b/s | All (ARM) |
+| 44 | `display_pll` | Thermal | Display PLL phase noise (~533 MHz pixel clock) | ~2500 b/s | macOS (ARM) |
+| 45 | `pcie_pll` | Thermal | PCIe PHY PLL jitter (Thunderbolt/PCIe clock domains) | ~2000 b/s | macOS (ARM) |
 
 ---
 
@@ -138,7 +136,7 @@
 
 **Category:** System
 **Struct:** `ProcessSource`
-**Platform:** All
+**Platform:** macOS
 **Estimated Rate:** ~300 b/s
 
 **Physics:** Process table snapshot -- PIDs, memory usage, CPU times, thread counts. Changes unpredictably with system activity. Each snapshot reflects the combined state of all processes on the machine.
@@ -205,35 +203,7 @@
 
 ---
 
-### 11. `memory_timing`
-
-**Category:** Timing
-**Struct:** `MemoryTimingSource`
-**Platform:** All
-**Estimated Rate:** ~800 b/s
-
-**Physics:** DRAM access timing varies with row buffer state, refresh timing, and thermal effects. Memory controller scheduling decisions (open-page vs closed-page policy) create measurable latency variation.
-
-**Implementation:** Allocates memory via `mmap`, performs accesses at varying offsets, and measures timing jitter.
-
-**Benchmark (raw):** Shannon entropy H=2.909, 102,500 samples in 0.1s. Grade C individually; pool conditioning lifts to Grade A.
-
----
-
-### 12. `gpu_timing`
-
-**Category:** GPU
-**Struct:** `GPUTimingSource`
-**Platform:** macOS (Metal)
-**Estimated Rate:** ~600 b/s
-
-**Physics:** GPU compute kernel dispatch timing varies with shader occupancy, memory bandwidth contention, thermal throttling micro-decisions, and warp/SIMD group scheduling. The GPU clock domain is independent from the CPU, adding cross-domain beat frequency effects.
-
-**Implementation:** Times `/usr/bin/sips` image processing operations, which invoke the GPU compute pipeline. The dispatch-to-completion latency captures GPU scheduling jitter.
-
----
-
-### 13. `audio_noise`
+### 11. `audio_noise`
 
 **Category:** Sensor
 **Struct:** `AudioNoiseSource`
@@ -246,7 +216,7 @@
 
 ---
 
-### 14. `camera_noise`
+### 12. `camera_noise`
 
 **Category:** Sensor
 **Struct:** `CameraNoiseSource`
@@ -261,7 +231,7 @@
 
 ---
 
-### 15. `bluetooth_noise`
+### 13. `bluetooth_noise`
 
 **Category:** Sensor
 **Struct:** `BluetoothNoiseSource`
@@ -274,7 +244,7 @@
 
 ---
 
-### 17. `ioregistry`
+### 14. `ioregistry`
 
 **Category:** System
 **Struct:** `IORegistryEntropySource`
@@ -291,7 +261,7 @@
 
 These sources exploit physical effects at the CPU and DRAM silicon level. They produce the highest entropy rates because they operate at nanosecond timescales with minimal software overhead.
 
-### 18. `dram_row_buffer`
+### 15. `dram_row_buffer`
 
 **Category:** Timing
 **Struct:** `DRAMRowBufferSource`
@@ -312,7 +282,7 @@ These sources exploit physical effects at the CPU and DRAM silicon level. They p
 
 ---
 
-### 19. `cache_contention`
+### 16. `cache_contention`
 
 **Category:** Timing
 **Struct:** `CacheContentionSource`
@@ -327,7 +297,7 @@ These sources exploit physical effects at the CPU and DRAM silicon level. They p
 
 ---
 
-### 20. `page_fault_timing`
+### 17. `page_fault_timing`
 
 **Category:** Timing
 **Struct:** `PageFaultTimingSource`
@@ -350,7 +320,7 @@ The timing depends on physical memory fragmentation, the kernel's page allocator
 
 ---
 
-### 21. `speculative_execution`
+### 18. `speculative_execution`
 
 **Category:** Microarch
 **Struct:** `SpeculativeExecutionSource`
@@ -369,7 +339,7 @@ The timing depends on physical memory fragmentation, the kernel's page allocator
 
 These sources exploit the interference patterns that arise when independent clock domains interact. Each subsystem (CPU, memory controller, I/O bus) has its own PLL with independent phase noise. When operations cross domain boundaries, the beat frequency of their jitter creates entropy.
 
-### 22. `cpu_io_beat`
+### 19. `cpu_io_beat`
 
 **Category:** Composite
 **Struct:** `CPUIOBeatSource`
@@ -382,7 +352,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ---
 
-### 23. `cpu_memory_beat`
+### 20. `cpu_memory_beat`
 
 **Category:** Composite
 **Struct:** `CPUMemoryBeatSource`
@@ -397,7 +367,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ## Signal Sources
 
-### 25. `compression_timing`
+### 21. `compression_timing`
 
 **Category:** Signal
 **Struct:** `CompressionTimingSource`
@@ -410,7 +380,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ---
 
-### 26. `hash_timing`
+### 22. `hash_timing`
 
 **Category:** Novel
 **Struct:** `HashTimingSource`
@@ -423,7 +393,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ---
 
-### 27. `dispatch_queue`
+### 23. `dispatch_queue`
 
 **Category:** Novel
 **Struct:** `DispatchQueueSource`
@@ -436,11 +406,11 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ---
 
-### 28. `vm_page_timing`
+### 24. `vm_page_timing`
 
 **Category:** Novel
 **Struct:** `VMPageTimingSource`
-**Platform:** macOS
+**Platform:** All
 **Estimated Rate:** ~400 b/s
 
 **Physics:** Mach VM page allocation latency depends on the kernel's free page list state, physical memory fragmentation, memory pressure from other processes, and page zeroing overhead.
@@ -449,7 +419,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 ---
 
-### 30. `spotlight_timing`
+### 25. `spotlight_timing`
 
 **Category:** Novel
 **Struct:** `SpotlightTimingSource`
@@ -466,7 +436,7 @@ These sources exploit the interference patterns that arise when independent cloc
 
 Experimental sources exploring unconventional entropy extraction mechanisms. These exploit OS kernel internals, cross-core interactions, and hardware coprocessor scheduling.
 
-### 31. `amx_timing`
+### 26. `amx_timing`
 
 **Category:** Frontier
 **Struct:** `AMXTimingSource`
@@ -479,7 +449,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 32. `thread_lifecycle`
+### 27. `thread_lifecycle`
 
 **Category:** Frontier
 **Struct:** `ThreadLifecycleSource`
@@ -492,7 +462,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 33. `mach_ipc`
+### 28. `mach_ipc`
 
 **Category:** Frontier
 **Struct:** `MachIPCSource`
@@ -505,11 +475,11 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 34. `tlb_shootdown`
+### 29. `tlb_shootdown`
 
 **Category:** Frontier
 **Struct:** `TLBShootdownSource`
-**Platform:** All
+**Platform:** macOS
 **Estimated Rate:** ~400 b/s
 
 **Physics:** Calling `mprotect()` on mapped memory triggers TLB (Translation Lookaside Buffer) invalidation via inter-processor interrupts (IPIs). The latency depends on which cores have cached the TLB entries, cross-core interrupt delivery time, and whether other cores are in low-power states.
@@ -518,11 +488,11 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 35. `pipe_buffer`
+### 30. `pipe_buffer`
 
 **Category:** Frontier
 **Struct:** `PipeBufferSource`
-**Platform:** All
+**Platform:** macOS
 **Estimated Rate:** ~200 b/s
 
 **Physics:** Creating and destroying pipes exercises the kernel's zone allocator for pipe buffer memory. Allocation timing depends on zone fragmentation, free list state, and memory pressure.
@@ -531,7 +501,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 36. `kqueue_events`
+### 31. `kqueue_events`
 
 **Category:** Frontier
 **Struct:** `KqueueEventsSource`
@@ -544,7 +514,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 37. `dvfs_race`
+### 32. `dvfs_race`
 
 **Category:** Frontier
 **Struct:** `DVFSRaceSource`
@@ -557,7 +527,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 38. `cas_contention`
+### 33. `cas_contention`
 
 **Category:** Frontier
 **Struct:** `CASContentionSource`
@@ -570,7 +540,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 39. `keychain_timing`
+### 34. `keychain_timing`
 
 **Category:** Frontier
 **Struct:** `KeychainTimingSource`
@@ -581,7 +551,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 **Implementation:** Performs Keychain API queries (searching for non-existent items) and measures the round-trip timing through the Security framework.
 
-### 40. `denormal_timing`
+### 35. `denormal_timing`
 
 **Category:** Thermal
 **Struct:** `DenormalTimingSource`
@@ -594,7 +564,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 41. `audio_pll_timing`
+### 36. `audio_pll_timing`
 
 **Category:** Thermal
 **Struct:** `AudioPLLTimingSource`
@@ -607,7 +577,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 42. `usb_timing`
+### 37. `usb_timing`
 
 **Category:** IO
 **Struct:** `USBTimingSource`
@@ -620,7 +590,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 43. `counter_beat`
+### 38. `counter_beat`
 
 **Category:** Thermal
 **Struct:** `CounterBeatSource`
@@ -635,7 +605,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 44. `gpu_divergence`
+### 39. `gpu_divergence`
 
 **Category:** GPU
 **Struct:** `GPUDivergenceSource`
@@ -644,11 +614,11 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 **Physics:** Dispatches Metal compute shaders where threads within a SIMD group (warp) take different execution paths based on thread index. When threads diverge, the GPU must serialize execution across the divergent paths. The timing of this serialization depends on GPU scheduler state, thermal throttling, and power management — all nondeterministic.
 
-**What makes it unique:** Only source exploiting **GPU SIMD lane divergence**. Unlike `gpu_timing` (measures dispatch scheduling overhead), this source forces intra-warp thread divergence and measures the timing cost. The GPU's internal scheduling decisions for divergent warps are not deterministic.
+**What makes it unique:** Only source exploiting **GPU SIMD lane divergence**. Forces intra-warp thread divergence and measures the timing cost. The GPU's internal scheduling decisions for divergent warps are not deterministic.
 
 ---
 
-### 45. `iosurface_crossing`
+### 40. `iosurface_crossing`
 
 **Category:** GPU
 **Struct:** `IOSurfaceCrossingSource`
@@ -657,11 +627,11 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 **Physics:** IOSurface is Apple's cross-domain shared memory primitive for GPU↔CPU coherence. Creating, mapping, and destroying IOSurfaces forces cache coherence protocol operations between the CPU and GPU memory controllers. The timing of these coherence operations depends on cache state, memory controller arbitration, and bus contention — all nondeterministic.
 
-**What makes it unique:** Only source exploiting **GPU↔CPU memory coherence protocol timing**. Unlike `gpu_timing`/`gpu_divergence` (compute dispatch), this source measures the cost of crossing the CPU-GPU memory boundary itself.
+**What makes it unique:** Only source exploiting **GPU↔CPU memory coherence protocol timing**. Unlike `gpu_divergence` (compute dispatch), this source measures the cost of crossing the CPU-GPU memory boundary itself.
 
 ---
 
-### 46. `fsync_journal`
+### 41. `fsync_journal`
 
 **Category:** IO
 **Struct:** `FsyncJournalSource`
@@ -674,7 +644,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 47. `nvme_latency`
+### 42. `nvme_latency`
 
 **Category:** IO
 **Struct:** `NVMeLatencySource`
@@ -687,7 +657,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 48. `pdn_resonance`
+### 43. `pdn_resonance`
 
 **Category:** Thermal
 **Struct:** `PDNResonanceSource`
@@ -700,7 +670,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 49. `display_pll`
+### 44. `display_pll`
 
 **Category:** Thermal
 **Struct:** `DisplayPllSource`
@@ -718,7 +688,7 @@ Experimental sources exploring unconventional entropy extraction mechanisms. The
 
 ---
 
-### 50. `pcie_pll`
+### 45. `pcie_pll`
 
 **Category:** Thermal
 **Struct:** `PciePllSource`
@@ -754,10 +724,10 @@ All oscillator sources use **CNTVCT_EL0** (CPU's 24 MHz crystal) as the timing r
 
 | Platform | Available Sources | Notes |
 |----------|:-----------------:|-------|
-| **MacBook (M-series)** | **47/47** | Full suite — WiFi, BLE, camera, mic, all sensors and oscillators |
-| **Mac Mini/Studio/Pro** | 44-45/47 | Most sources — no built-in camera or mic on some models |
-| **Intel Mac** | ~20/47 | Timing, system, network, disk sources work; ARM-specific sources unavailable |
-| **Linux** | ~12/47 | Timing, network, disk, process sources; no macOS/ARM-specific sources |
+| **MacBook (M-series)** | **45/45** | Full suite — WiFi, BLE, camera, mic, all sensors and oscillators |
+| **Mac Mini/Studio/Pro** | 42–43/45 | Most sources — no built-in camera or mic on some models |
+| **Intel Mac** | ~18/45 | Timing, system, network, disk sources work; ARM-specific sources unavailable |
+| **Linux** | ~12/45 | Timing, network, disk, process sources; no macOS/ARM-specific sources |
 
 The package gracefully detects available hardware via `detect_available_sources()` and only activates sources that pass `is_available()`. MacBooks provide the richest entropy because they pack the most sensors into one device.
 
@@ -781,4 +751,4 @@ To add a new entropy source to the Rust codebase:
 4. Add unit tests in the same file
 5. Document the physics in this file
 
-See [ADDING_SOURCES.md](ADDING_SOURCES.md) for the Python-side equivalent.
+The Python bindings automatically expose all Rust sources via PyO3 — see `crates/openentropy-python/src/lib.rs`.

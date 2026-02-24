@@ -80,6 +80,7 @@ struct SourceEntry {
     healthy: bool,
     bytes: u64,
     entropy: f64,
+    min_entropy: f64,
     time: f64,
     failures: u64,
 }
@@ -229,6 +230,7 @@ async fn handle_sources(
             healthy: s.healthy,
             bytes: s.bytes,
             entropy: s.entropy,
+            min_entropy: s.min_entropy,
             time: s.time,
             failures: s.failures,
         })
@@ -261,6 +263,7 @@ async fn handle_pool_status(
             "healthy": s.healthy,
             "bytes": s.bytes,
             "entropy": s.entropy,
+            "min_entropy": s.min_entropy,
             "time": s.time,
             "failures": s.failures,
         })).collect::<Vec<_>>(),
@@ -333,11 +336,20 @@ fn build_router(pool: EntropyPool, allow_raw: bool) -> Router {
 }
 
 /// Run the HTTP entropy server.
-pub async fn run_server(pool: EntropyPool, host: &str, port: u16, allow_raw: bool) {
+///
+/// Returns an error if the address cannot be bound or the server encounters
+/// a fatal I/O error.
+pub async fn run_server(
+    pool: EntropyPool,
+    host: &str,
+    port: u16,
+    allow_raw: bool,
+) -> std::io::Result<()> {
     let app = build_router(pool, allow_raw);
     let addr = format!("{host}:{port}");
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 // Simple hex encoding without external dep

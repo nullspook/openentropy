@@ -18,9 +18,7 @@ pub mod compression;
 pub mod cross_domain;
 pub mod disk;
 pub mod frontier;
-pub mod gpu;
 pub mod ioregistry;
-pub mod memory;
 pub mod network;
 pub mod novel;
 pub mod process;
@@ -50,8 +48,6 @@ pub fn all_sources() -> Vec<Box<dyn EntropySource>> {
         Box::new(wifi::WiFiRSSISource::new()),
         // Hardware
         Box::new(disk::DiskIOSource),
-        Box::new(memory::MemoryTimingSource),
-        Box::new(gpu::GPUTimingSource),
         Box::new(audio::AudioNoiseSource::default()),
         Box::new(camera::CameraNoiseSource::default()),
         Box::new(bluetooth::BluetoothNoiseSource),

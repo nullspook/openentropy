@@ -223,8 +223,11 @@ impl EntropySource for MachIPCSource {
                     // SAFETY: standard Mach port operations.
                     let kr = unsafe { mach_port_allocate(task, 1, &mut new_port) };
                     if kr == 0 {
+                        // Drop the receive right. mach_port_allocate with
+                        // MACH_PORT_RIGHT_RECEIVE creates a receive right only;
+                        // use mod_refs to release it (not mach_port_deallocate,
+                        // which is for send/send-once rights).
                         unsafe {
-                            mach_port_deallocate(task, new_port);
                             mach_port_mod_refs(task, new_port, 1, -1);
                         }
                     }
@@ -239,7 +242,10 @@ impl EntropySource for MachIPCSource {
 
             for &port in &ports {
                 unsafe {
-                    mach_port_mod_refs(task, port, 1, -1);
+                    // Release the send right created by mach_port_insert_right.
+                    mach_port_mod_refs(task, port, 0 /* MACH_PORT_RIGHT_SEND */, -1);
+                    // Release the receive right created by mach_port_allocate.
+                    mach_port_mod_refs(task, port, 1 /* MACH_PORT_RIGHT_RECEIVE */, -1);
                 }
             }
 
@@ -260,8 +266,10 @@ impl MachIPCSource {
             let mut port: u32 = 0;
             let kr = unsafe { mach_port_allocate(task, 1, &mut port) };
             if kr == 0 {
+                // Drop the receive right directly via mod_refs.
+                // mach_port_deallocate is for send rights and would leave
+                // the port name invalid before the subsequent mod_refs call.
                 unsafe {
-                    mach_port_deallocate(task, port);
                     mach_port_mod_refs(task, port, 1, -1);
                 }
             }
@@ -296,8 +304,8 @@ struct MachMsgOOLDescriptor {
     address: *mut u8,
     deallocate: u8,
     copy: u8,
-    ool_type: u8,
     _pad: u8,
+    ool_type: u8, // mach_msg_descriptor_type_t — must be last in this group
     size: u32,
 }
 
@@ -326,7 +334,6 @@ impl MachMsgOOL {
 unsafe extern "C" {
     fn mach_task_self() -> u32;
     fn mach_port_allocate(task: u32, right: i32, name: *mut u32) -> i32;
-    fn mach_port_deallocate(task: u32, name: u32) -> i32;
     fn mach_port_mod_refs(task: u32, name: u32, right: i32, delta: i32) -> i32;
     fn mach_port_insert_right(task: u32, name: u32, poly: u32, poly_poly: u32) -> i32;
     fn mach_port_type(task: u32, name: u32, ptype: *mut u32) -> i32;

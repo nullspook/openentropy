@@ -22,7 +22,6 @@ const FAST_SOURCES: &[&str] = &[
     "sysctl_deltas",
     "vmstat_deltas",
     "disk_io",
-    "memory_timing",
     "dram_row_buffer",
     "cache_contention",
     "page_fault_timing",

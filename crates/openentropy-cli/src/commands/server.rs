@@ -43,6 +43,15 @@ pub fn run(
         println!();
     }
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(openentropy_server::run_server(pool, host, port, allow_raw));
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Failed to start async runtime: {e}");
+            std::process::exit(1);
+        }
+    };
+    if let Err(e) = rt.block_on(openentropy_server::run_server(pool, host, port, allow_raw)) {
+        eprintln!("Server error: {e}");
+        std::process::exit(1);
+    }
 }

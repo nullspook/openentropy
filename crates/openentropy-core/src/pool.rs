@@ -208,7 +208,6 @@ impl EntropyPool {
     /// Collect `n_samples` of entropy from sources whose names are in the list.
     /// Smaller `n_samples` values are faster — use this for interactive/TUI contexts.
     pub fn collect_enabled_n(&self, enabled_names: &[String], n_samples: usize) -> usize {
-        use std::sync::Arc;
         let results: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
 
         std::thread::scope(|s| {
@@ -242,12 +241,18 @@ impl EntropyPool {
     }
 
     fn collect_one_n(ss_mutex: &Arc<Mutex<SourceState>>, n_samples: usize) -> Vec<u8> {
-        let mut ss = ss_mutex.lock().unwrap();
+        // Clone the Arc<dyn EntropySource> so we can release the mutex during
+        // the (potentially slow) collect() call. This allows health_report()
+        // and TUI reads to proceed without blocking on source collection.
+        let source = {
+            let ss = ss_mutex.lock().unwrap();
+            Arc::clone(&ss.source)
+        };
+
         let t0 = Instant::now();
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            ss.source.collect(n_samples)
-        })) {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source.collect(n_samples))) {
             Ok(data) if !data.is_empty() => {
+                let mut ss = ss_mutex.lock().unwrap();
                 ss.last_collect_time = t0.elapsed();
                 ss.total_bytes += data.len() as u64;
                 ss.last_entropy = quick_shannon(&data);
@@ -256,12 +261,14 @@ impl EntropyPool {
                 data
             }
             Ok(_) => {
+                let mut ss = ss_mutex.lock().unwrap();
                 ss.last_collect_time = t0.elapsed();
                 ss.failures += 1;
                 ss.healthy = false;
                 Vec::new()
             }
             Err(_) => {
+                let mut ss = ss_mutex.lock().unwrap();
                 ss.last_collect_time = t0.elapsed();
                 ss.failures += 1;
                 ss.healthy = false;

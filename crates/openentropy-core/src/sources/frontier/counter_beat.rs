@@ -71,90 +71,6 @@ static COUNTER_BEAT_INFO: SourceInfo = SourceInfo {
 /// with uncorrelated thermal noise.
 pub struct CounterBeatSource;
 
-/// CoreAudio FFI for audio PLL clock domain crossing.
-#[cfg(target_os = "macos")]
-mod coreaudio {
-    #[repr(C)]
-    pub struct AudioObjectPropertyAddress {
-        pub m_selector: u32,
-        pub m_scope: u32,
-        pub m_element: u32,
-    }
-
-    pub const AUDIO_OBJECT_SYSTEM_OBJECT: u32 = 1;
-    pub const AUDIO_HARDWARE_PROPERTY_DEFAULT_OUTPUT_DEVICE: u32 = 0x644F7574; // 'dOut'
-    pub const AUDIO_DEVICE_PROPERTY_ACTUAL_SAMPLE_RATE: u32 = 0x61737264; // 'asrd'
-    pub const AUDIO_DEVICE_PROPERTY_LATENCY: u32 = 0x6C746E63; // 'ltnc'
-    pub const AUDIO_DEVICE_PROPERTY_NOMINAL_SAMPLE_RATE: u32 = 0x6E737274; // 'nsrt'
-    pub const AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL: u32 = 0x676C6F62; // 'glob'
-    pub const AUDIO_OBJECT_PROPERTY_ELEMENT_MAIN: u32 = 0;
-    pub const AUDIO_DEVICE_PROPERTY_SCOPE_OUTPUT: u32 = 0x6F757470; // 'outp'
-
-    #[link(name = "CoreAudio", kind = "framework")]
-    unsafe extern "C" {
-        pub fn AudioObjectGetPropertyData(
-            object_id: u32,
-            address: *const AudioObjectPropertyAddress,
-            qualifier_data_size: u32,
-            qualifier_data: *const std::ffi::c_void,
-            data_size: *mut u32,
-            data: *mut std::ffi::c_void,
-        ) -> i32;
-    }
-
-    /// Get the default output audio device ID, or 0 if none.
-    pub fn get_default_output_device() -> u32 {
-        let addr = AudioObjectPropertyAddress {
-            m_selector: AUDIO_HARDWARE_PROPERTY_DEFAULT_OUTPUT_DEVICE,
-            m_scope: AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL,
-            m_element: AUDIO_OBJECT_PROPERTY_ELEMENT_MAIN,
-        };
-        let mut device: u32 = 0;
-        let mut size: u32 = std::mem::size_of::<u32>() as u32;
-        // SAFETY: AudioObjectGetPropertyData reads a property from the system
-        // audio object. We pass valid pointers with correct sizes.
-        let status = unsafe {
-            AudioObjectGetPropertyData(
-                AUDIO_OBJECT_SYSTEM_OBJECT,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                &mut device as *mut u32 as *mut std::ffi::c_void,
-            )
-        };
-        if status == 0 { device } else { 0 }
-    }
-
-    /// Force a clock domain crossing by querying an audio device property.
-    ///
-    /// Returns the raw bytes read from the audio subsystem (we don't care about
-    /// the value — the point is forcing the CPU to synchronize with the audio PLL).
-    pub fn query_audio_property(device: u32, selector: u32, scope: u32) {
-        let addr = AudioObjectPropertyAddress {
-            m_selector: selector,
-            m_scope: scope,
-            m_element: AUDIO_OBJECT_PROPERTY_ELEMENT_MAIN,
-        };
-        let mut data = [0u8; 8];
-        let mut size: u32 = 8;
-        // SAFETY: AudioObjectGetPropertyData reads a property from a valid audio device.
-        // `data` is an 8-byte stack buffer sufficient for all queried properties.
-        unsafe {
-            AudioObjectGetPropertyData(
-                device,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                data.as_mut_ptr() as *mut std::ffi::c_void,
-            );
-        }
-        // Prevent the compiler from optimizing away the query.
-        std::hint::black_box(data);
-    }
-}
-
 impl EntropySource for CounterBeatSource {
     fn info(&self) -> &SourceInfo {
         &COUNTER_BEAT_INFO
@@ -163,7 +79,7 @@ impl EntropySource for CounterBeatSource {
     fn is_available(&self) -> bool {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
-            coreaudio::get_default_output_device() != 0
+            super::coreaudio_ffi::get_default_output_device() != 0
         }
         #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
         {
@@ -180,7 +96,9 @@ impl EntropySource for CounterBeatSource {
 
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
-            let device = coreaudio::get_default_output_device();
+            use super::coreaudio_ffi;
+
+            let device = coreaudio_ffi::get_default_output_device();
             if device == 0 {
                 return Vec::new();
             }
@@ -189,16 +107,16 @@ impl EntropySource for CounterBeatSource {
             // different code paths crossing the PLL clock domain boundary.
             let selectors = [
                 (
-                    coreaudio::AUDIO_DEVICE_PROPERTY_ACTUAL_SAMPLE_RATE,
-                    coreaudio::AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL,
+                    coreaudio_ffi::AUDIO_DEVICE_PROPERTY_ACTUAL_SAMPLE_RATE,
+                    coreaudio_ffi::AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL,
                 ),
                 (
-                    coreaudio::AUDIO_DEVICE_PROPERTY_LATENCY,
-                    coreaudio::AUDIO_DEVICE_PROPERTY_SCOPE_OUTPUT,
+                    coreaudio_ffi::AUDIO_DEVICE_PROPERTY_LATENCY,
+                    coreaudio_ffi::AUDIO_DEVICE_PROPERTY_SCOPE_OUTPUT,
                 ),
                 (
-                    coreaudio::AUDIO_DEVICE_PROPERTY_NOMINAL_SAMPLE_RATE,
-                    coreaudio::AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL,
+                    coreaudio_ffi::AUDIO_DEVICE_PROPERTY_NOMINAL_SAMPLE_RATE,
+                    coreaudio_ffi::AUDIO_OBJECT_PROPERTY_SCOPE_GLOBAL,
                 ),
             ];
 
@@ -213,7 +131,7 @@ impl EntropySource for CounterBeatSource {
                 let counter_before = read_cntvct();
 
                 // Force a clock domain crossing into the audio PLL.
-                coreaudio::query_audio_property(device, sel, scope);
+                coreaudio_ffi::query_audio_property(device, sel, scope);
 
                 // Read CNTVCT_EL0 immediately after.
                 let counter_after = read_cntvct();

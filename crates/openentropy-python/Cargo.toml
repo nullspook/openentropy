@@ -7,6 +7,8 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 description = "Python bindings for openentropy via PyO3"
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 name = "openentropy"

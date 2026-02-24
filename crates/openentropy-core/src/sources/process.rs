@@ -28,7 +28,7 @@ static PROCESS_INFO: SourceInfo = SourceInfo {
               semi-randomly, CPU percentages fluctuate with scheduling decisions, and \
               resident memory sizes shift with page reclamation.",
     category: SourceCategory::System,
-    platform: Platform::Any,
+    platform: Platform::MacOS,
     requirements: &[],
     entropy_rate_estimate: 400.0,
     composite: false,
@@ -76,7 +76,7 @@ fn collect_getpid_jitter(n_bytes: usize) -> Vec<u8> {
 
 /// Run `ps -eo pid,pcpu,rss` and return its raw stdout bytes.
 fn snapshot_process_table() -> Option<Vec<u8>> {
-    run_command_raw("ps", &["-eo", "pid,pcpu,rss"])
+    run_command_raw("/bin/ps", &["-eo", "pid,pcpu,rss"])
 }
 
 impl EntropySource for ProcessSource {
@@ -85,7 +85,7 @@ impl EntropySource for ProcessSource {
     }
 
     fn is_available(&self) -> bool {
-        super::helpers::command_exists("ps")
+        super::helpers::command_exists("/bin/ps")
     }
 
     fn collect(&self, n_samples: usize) -> Vec<u8> {

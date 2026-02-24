@@ -28,7 +28,7 @@ static CPU_IO_BEAT_INFO: SourceInfo = SourceInfo {
     platform: Platform::Any,
     requirements: &[],
     entropy_rate_estimate: 1500.0,
-    composite: false,
+    composite: true,
 };
 
 /// Entropy source that captures beat frequency between CPU and I/O clock domains.
@@ -103,7 +103,7 @@ static CPU_MEMORY_BEAT_INFO: SourceInfo = SourceInfo {
     platform: Platform::Any,
     requirements: &[],
     entropy_rate_estimate: 2500.0,
-    composite: false,
+    composite: true,
 };
 
 /// Entropy source that captures beat frequency between CPU and memory controller

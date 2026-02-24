@@ -105,7 +105,7 @@ static TLB_SHOOTDOWN_INFO: SourceInfo = SourceInfo {
               on: what each core is executing, P-core vs E-core cluster latency, core power \
               states, and concurrent IPI traffic.",
     category: SourceCategory::Microarch,
-    platform: Platform::Any,
+    platform: Platform::MacOS,
     requirements: &[],
     entropy_rate_estimate: 2000.0,
     composite: false,
@@ -117,7 +117,7 @@ impl EntropySource for TLBShootdownSource {
     }
 
     fn is_available(&self) -> bool {
-        cfg!(unix)
+        cfg!(target_os = "macos")
     }
 
     fn collect(&self, n_samples: usize) -> Vec<u8> {

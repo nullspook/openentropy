@@ -8,7 +8,7 @@ Includes a NIST SP 800-22 inspired suite and quality scoring utilities.
 
 ```toml
 [dependencies]
-openentropy-tests = "0.5.1"
+openentropy-tests = "0.7"
 ```
 
 ## Repository

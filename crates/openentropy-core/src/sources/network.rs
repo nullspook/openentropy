@@ -125,8 +125,11 @@ impl EntropySource for DNSTimingSource {
         let hostname_count = DNS_HOSTNAMES.len();
 
         let mut prev_nanos: Option<u128> = None;
+        let max_iterations = n_samples * 20 + 200;
+        let mut iter_count = 0;
 
-        while entropy.len() < n_samples {
+        while entropy.len() < n_samples && iter_count < max_iterations {
+            iter_count += 1;
             let idx = self.index.fetch_add(1, Ordering::Relaxed);
             let server = DNS_SERVERS[idx % server_count];
             let hostname = DNS_HOSTNAMES[idx % hostname_count];
@@ -240,8 +243,11 @@ impl EntropySource for TCPConnectSource {
         let target_count = TCP_TARGETS.len();
 
         let mut prev_nanos: Option<u128> = None;
+        let max_iterations = n_samples * 20 + 200;
+        let mut iter_count = 0;
 
-        while entropy.len() < n_samples {
+        while entropy.len() < n_samples && iter_count < max_iterations {
+            iter_count += 1;
             let idx = self.index.fetch_add(1, Ordering::Relaxed);
             let target = TCP_TARGETS[idx % target_count];
 

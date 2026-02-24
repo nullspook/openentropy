@@ -12,10 +12,10 @@
 ```
 Cargo.toml                    # Workspace root
 crates/
-├── openentropy-core/            # EntropySource trait, 36 sources, pool, conditioning
+├── openentropy-core/            # EntropySource trait, 45 sources, pool, conditioning
 │   └── src/
 │       ├── source.rs         # EntropySource trait definition
-│       ├── sources/          # All 36 source implementations
+│       ├── sources/          # All 45 source implementations
 │       │   └── mod.rs        # Source registry (all_sources())
 │       ├── pool.rs           # Multi-source entropy pool
 │       ├── conditioning.rs   # SHA-256 conditioning
@@ -94,15 +94,17 @@ maturin build --release
 2. **Implement the `EntropySource` trait**:
 
 ```rust
-use crate::source::{EntropySource, SourceCategory, SourceInfo};
+use crate::source::{EntropySource, Platform, SourceCategory, SourceInfo};
 
 static INFO: SourceInfo = SourceInfo {
     name: "your_source",
     description: "Brief description of the source",
     physics: "Explanation of the physical phenomenon providing entropy",
-    category: SourceCategory::Novel, // pick the right category
-    platform_requirements: &["darwin"],
+    category: SourceCategory::Timing, // pick the right category
+    platform: Platform::Any,
+    requirements: &[],
     entropy_rate_estimate: 500.0, // bits/second estimate
+    composite: false,
 };
 
 pub struct YourSource;

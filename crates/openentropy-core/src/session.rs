@@ -97,7 +97,7 @@ fn os_version() -> Option<String> {
 fn detect_chip() -> Option<String> {
     #[cfg(target_os = "macos")]
     {
-        let output = std::process::Command::new("sysctl")
+        let output = std::process::Command::new("/usr/sbin/sysctl")
             .arg("-n")
             .arg("machdep.cpu.brand_string")
             .output()

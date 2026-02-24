@@ -8,7 +8,7 @@ Uses browser-side signals (timing jitter, scheduling noise, and `crypto.getRando
 
 ```toml
 [dependencies]
-openentropy-wasm = "0.5.1"
+openentropy-wasm = "0.7"
 ```
 
 ## Repository

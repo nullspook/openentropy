@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.7.0 — 2026-02-23
+
+### Changed
+
+- **Pool collection no longer blocks health reads.** `SourceState.source` changed from `Box<dyn EntropySource>` to `Arc<dyn EntropySource>`. The pool mutex is now released during `collect()` calls, allowing `health_report()` and TUI updates to proceed without blocking on slow sources.
+- `run_server` now returns `std::io::Result<()>` instead of panicking on bind/serve failures. Server CLI handles `Runtime::new()` failure gracefully.
+- Server `SourceEntry` and pool status API now include `min_entropy` field.
+- Deduplicated CoreAudio FFI bindings into shared `coreaudio_ffi` module used by `audio_pll_timing` and `counter_beat` (~160 lines removed).
+
+### Removed
+
+- **`memory_timing`** — true duplicate of `vm_page_timing` (identical mmap→write_volatile→munmap pattern). Use `vm_page_timing` instead.
+- **`gpu_timing`** — strictly inferior to `gpu_divergence` (~47s via sips subprocess vs ~0.8s native Metal compute, same GPU clock domain). Use `gpu_divergence` instead.
+- Source count reduced from 47 to 45. All documentation and metadata updated.
+
+### Fixed
+
+- **Mach IPC port lifecycle** — Fixed use-after-free (`mach_port_deallocate` before `mach_port_mod_refs` on same port), send right leak on cleanup, and `MachMsgOOLDescriptor` struct field order (`type` and `pad` were swapped vs XNU kernel layout).
+- **CoreAudio constant** — `AUDIO_DEVICE_PROPERTY_ACTUAL_SAMPLE_RATE` was `0x61737264` ('asrd'), corrected to `0x61737274` ('asrt') per Apple SDK headers.
+- **Signal handler safety** — `stream.rs` FIFO cleanup now pre-computes `CString` into a `OnceLock` and uses `libc::unlink`/`libc::_exit` instead of heap-allocating Rust stdlib functions inside the signal handler.
+- **Network source runaway** — DNS and TCP entropy sources now have iteration caps to prevent infinite loops when all targets are unreachable.
+- **Install script** — `VERSION` and `ASSET_NAME` were computed before `LATEST` was fetched, producing empty values.
+- **Platform metadata consistency** — `process` corrected to `Platform::MacOS` (uses `/bin/ps`); `pipe_buffer` and `tlb_shootdown` `is_available()` aligned with `Platform::MacOS`; `vm_page_timing` corrected to `Platform::Any` (pure POSIX `mmap`).
+- **Composite flag** — `cpu_io_beat` and `cpu_memory_beat` now correctly declare `composite: true`.
+- **Binary paths** — `sysctl`, `uptime`, `vm_stat`, `netstat` now use full absolute paths (`/usr/sbin/sysctl`, etc.) in session and telemetry modules.
+- **Documentation** — Corrected stale version references, source counts, CLI command counts, and code examples across SECURITY.md, CONTRIBUTING.md, ARCHITECTURE.md, README.md, CONDITIONING.md, API.md, and per-crate READMEs. Renumbered SOURCES.md catalog (1-45 sequential, was 1-50 with gaps).
+
+## 0.6.0 — 2026-02-22
+
+### Added
+
+- Telemetry system (`telemetry_v1`): `TelemetrySnapshot`, `TelemetryWindowReport`, and standalone `telemetry` CLI command with `--window-sec` support.
+- Shannon entropy and min-entropy fields in `SourceAnalysis`.
+- Server `/sources` and `/pool/status` endpoints now accept `?telemetry=true` for start/end telemetry reports.
+- 20 frontier entropy sources exploiting previously-unharvested hardware nondeterminism (AMX timing, TLB shootdown, pipe buffer contention, Mach IPC, kqueue events, DVFS race, CAS contention, Keychain timing, audio PLL, counter beat, display PLL, PCIe PLL, and more).
+
+### Changed
+
+- Merged `device` command into `stream --fifo` and `report` command into `analyze --report`.
+- Improved bench scoring: graduated reliability penalty, stability index edge-case fix, entropy-gated source interpretation.
+- DRY refactoring: extracted `filter_sources`, `print_cross_correlation`, `write_json`, `unix_timestamp_now`, `parse_conditioning` into shared module.
+- TUI chart mode now persists across source switches.
+
 ## 0.5.1 — 2026-02-18
 
 ### Changed

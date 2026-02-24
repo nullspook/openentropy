@@ -4,7 +4,7 @@
 
 openentropy is a multi-source entropy harvesting system written in Rust. It treats every computer as a collection of noisy analog subsystems and extracts randomness from their unpredictable physical behavior. The project is structured as a Cargo workspace with multiple crates, each with a focused responsibility.
 
-**Version:** 0.5.1
+**Version:** 0.7.0
 **Edition:** Rust 2024
 **License:** MIT
 
@@ -21,7 +21,7 @@ openentropy/
 │   │       ├── pool.rs             # EntropyPool — thread-safe multi-source collector
 │   │       ├── conditioning.rs     # SHA-256, Von Neumann, XOR-fold, quality metrics
 │   │       ├── platform.rs         # Source auto-discovery, platform detection
-│   │       └── sources/            # 47 source implementations
+│   │       └── sources/            # 45 source implementations
 │   │           ├── mod.rs          # all_sources() registry
 │   │           ├── timing.rs       # ClockJitter, MachTiming, SleepJitter
 │   │           ├── sysctl.rs       # Kernel counter mining
@@ -30,8 +30,6 @@ openentropy/
 │   │           ├── network.rs      # DNS timing, TCP connect
 │   │           ├── wifi.rs         # WiFi RSSI noise
 │   │           ├── disk.rs         # Block I/O timing
-│   │           ├── memory.rs       # DRAM access timing
-│   │           ├── gpu.rs          # GPU scheduling jitter
 │   │           ├── audio.rs        # Microphone thermal noise
 │   │           ├── camera.rs       # Sensor dark current
 │   │           ├── bluetooth.rs    # BLE RF noise
@@ -43,19 +41,18 @@ openentropy/
 │   │
 │   ├── openentropy-cli/               # CLI binary
 │   │   └── src/
-│   │       ├── main.rs             # clap argument parsing, 10 subcommands
+│   │       ├── main.rs             # clap argument parsing, 9 subcommands
 │   │       ├── commands/           # One module per subcommand
 │   │       │   ├── mod.rs          # make_pool() helper with source filtering
 │   │       │   ├── scan.rs         # Discover available sources
 │   │       │   ├── bench.rs        # Benchmark all sources with ranking
-│   │       │   ├── analyze.rs      # Statistical source analysis
-│   │       │   ├── stream.rs       # Continuous entropy to stdout
-│   │       │   ├── device.rs       # Named pipe (FIFO) provider
+│   │       │   ├── analyze.rs      # Statistical source analysis (includes --report)
+│   │       │   ├── stream.rs       # Continuous entropy to stdout (includes --fifo)
 │   │       │   ├── server.rs       # Launch HTTP server
 │   │       │   ├── monitor.rs      # Launch TUI dashboard
-│   │       │   ├── report.rs       # NIST test battery with Markdown output
 │   │       │   ├── record.rs       # Record session data to disk
-│   │       │   └── sessions.rs     # Inspect/analyze recorded sessions
+│   │       │   ├── sessions.rs     # Inspect/analyze recorded sessions
+│   │       │   └── telemetry.rs    # Standalone telemetry capture
 │   │       └── tui/                # Interactive dashboard
 │   │           ├── mod.rs
 │   │           ├── app.rs          # Application state, event loop
@@ -82,7 +79,7 @@ openentropy/
 
 ### 1. openentropy-core
 
-The foundational library. Contains all 47 entropy source implementations, the mixing pool, conditioning pipeline, quality metrics, and platform detection.
+The foundational library. Contains all 45 entropy source implementations, the mixing pool, conditioning pipeline, quality metrics, and platform detection.
 
 **Key dependencies:** `sha2`, `flate2`, `libc`, `rand`, `tempfile`, `log`, `getrandom`
 
@@ -95,11 +92,11 @@ The foundational library. Contains all 47 entropy source implementations, the mi
 
 ### 2. openentropy-cli
 
-The command-line binary (`openentropy`). Provides ten subcommands for interacting with the entropy system, plus an interactive TUI monitor built with ratatui and crossterm.
+The command-line binary (`openentropy`). Provides nine subcommands for interacting with the entropy system, plus an interactive TUI monitor built with ratatui and crossterm.
 
 **Key dependencies:** `openentropy-core`, `openentropy-server`, `openentropy-tests`, `clap`, `ratatui`, `crossterm`, `tokio`
 
-**Subcommands:** `scan`, `bench`, `analyze`, `report`, `record`, `sessions`, `monitor`, `stream`, `device`, `server`
+**Subcommands:** `scan`, `bench`, `analyze`, `record`, `sessions`, `monitor`, `stream`, `server`, `telemetry`
 
 ### 3. openentropy-server
 
@@ -125,7 +122,7 @@ PyO3 bindings that expose the Rust library to Python. Compiles as a `cdylib` tha
 
 ```
                          ┌─────────────────────────────────────────────┐
-                         │          47 ENTROPY SOURCES                 │
+                         │          45 ENTROPY SOURCES                 │
                          │                                             │
                          │  Timing      System      Network   Hardware │
                          │  Silicon     CrossDomain  Novel             │

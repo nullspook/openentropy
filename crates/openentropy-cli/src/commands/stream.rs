@@ -130,12 +130,15 @@ fn run_fifo(path: &str, buffer_size: usize, source_filter: Option<&str>, conditi
     let _ = std::fs::remove_file(path);
 }
 
-/// Store the FIFO path globally so the signal handler can clean it up.
-static FIFO_PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+/// Pre-computed CString for the FIFO path so the signal handler avoids heap
+/// allocation (malloc is not async-signal-safe).
+static FIFO_CPATH: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
 
 /// Register a signal handler that removes the FIFO on Ctrl+C / SIGTERM.
 fn install_cleanup_handler(path: &str) {
-    let _ = FIFO_PATH.set(path.to_string());
+    if let Ok(c) = std::ffi::CString::new(path) {
+        let _ = FIFO_CPATH.set(c);
+    }
     // SAFETY: signal() registers a C-linkage handler for SIGINT/SIGTERM.
     // signal_handler is a valid extern "C" fn with correct signature.
     unsafe {
@@ -151,10 +154,16 @@ fn install_cleanup_handler(path: &str) {
 }
 
 extern "C" fn signal_handler(_: libc::c_int) {
-    if let Some(path) = FIFO_PATH.get() {
-        let _ = std::fs::remove_file(path);
+    // Only call async-signal-safe functions here.
+    // FIFO_CPATH.get() is a relaxed atomic load after initialization.
+    if let Some(c_path) = FIFO_CPATH.get() {
+        unsafe {
+            libc::unlink(c_path.as_ptr());
+        }
     }
-    std::process::exit(0);
+    unsafe {
+        libc::_exit(0);
+    }
 }
 
 fn base64_encode(data: &[u8]) -> String {

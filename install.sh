@@ -23,8 +23,6 @@ case "$ARCH" in
     *)             echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-ASSET_NAME="${BINARY}-${ARCH_TAG}-${OS_TAG}"
-
 # Get latest release tag
 echo "Fetching latest release..."
 LATEST=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*: "//;s/".*//')
@@ -32,6 +30,9 @@ if [ -z "$LATEST" ]; then
     echo "Error: Could not determine latest release"; exit 1
 fi
 echo "Latest release: $LATEST"
+
+VERSION="${LATEST#v}"
+ASSET_NAME="${BINARY}-${VERSION}-${ARCH_TAG}-${OS_TAG}"
 
 BASE_URL="https://github.com/${REPO}/releases/download/${LATEST}"
 

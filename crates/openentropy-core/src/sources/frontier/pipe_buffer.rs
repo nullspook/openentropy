@@ -110,7 +110,7 @@ static PIPE_BUFFER_INFO: SourceInfo = SourceInfo {
               captures EAGAIN timing on different kernel failure paths. Zone allocator timing \
               depends on zone fragmentation, magazine layer state, and cross-CPU transfers.",
     category: SourceCategory::IPC,
-    platform: Platform::Any,
+    platform: Platform::MacOS,
     requirements: &[],
     entropy_rate_estimate: 1500.0,
     composite: false,
@@ -122,7 +122,7 @@ impl EntropySource for PipeBufferSource {
     }
 
     fn is_available(&self) -> bool {
-        cfg!(unix)
+        cfg!(target_os = "macos")
     }
 
     fn collect(&self, n_samples: usize) -> Vec<u8> {

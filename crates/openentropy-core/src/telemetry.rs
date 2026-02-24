@@ -288,7 +288,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Option<String> {
 
 #[cfg(target_os = "macos")]
 fn read_sysctl(key: &str) -> Option<String> {
-    run_command("sysctl", &["-n", key])
+    run_command("/usr/sbin/sysctl", &["-n", key])
 }
 
 #[cfg(target_os = "macos")]
@@ -358,7 +358,7 @@ fn parse_macos_uptime_piece(raw: &str) -> Option<f64> {
 
 #[cfg(target_os = "macos")]
 fn collect_macos_uptime_metrics(out: &mut Vec<TelemetryMetric>) {
-    let Some(raw) = run_command("uptime", &[]) else {
+    let Some(raw) = run_command("/usr/bin/uptime", &[]) else {
         return;
     };
     let left = raw
@@ -567,7 +567,7 @@ fn collect_macos_cp_time_metrics(out: &mut Vec<TelemetryMetric>) {
 
 #[cfg(target_os = "macos")]
 fn collect_macos_vm_stat_metrics(out: &mut Vec<TelemetryMetric>) {
-    let Some(vm) = run_command("vm_stat", &[]) else {
+    let Some(vm) = run_command("/usr/bin/vm_stat", &[]) else {
         return;
     };
     let mut page_size = 4096.0_f64;
@@ -637,7 +637,7 @@ fn collect_macos_vm_stat_metrics(out: &mut Vec<TelemetryMetric>) {
 
 #[cfg(target_os = "macos")]
 fn collect_macos_network_metrics(out: &mut Vec<TelemetryMetric>) {
-    let Some(raw) = run_command("netstat", &["-ibn"]) else {
+    let Some(raw) = run_command("/usr/sbin/netstat", &["-ibn"]) else {
         return;
     };
     let mut interface_count = 0.0;

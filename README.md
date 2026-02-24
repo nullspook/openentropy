@@ -12,7 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/amenti-labs/openentropy/ci.yml?branch=master&label=CI)](https://github.com/amenti-labs/openentropy/actions)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 
-*47 entropy sources from the physics inside your computer — clock jitter, thermal noise, DRAM timing, cache contention, GPU scheduling, IPC latency, and more. Conditioned output for cryptography. Raw output for research.*
+*45 entropy sources from the physics inside your computer — clock jitter, thermal noise, DRAM timing, cache contention, GPU scheduling, IPC latency, and more. Conditioned output for cryptography. Raw output for research.*
 
 **Built for Apple Silicon. No special hardware. No API keys. Just physics.**
 
@@ -118,7 +118,7 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 
 | Doc | Description |
 |-----|-------------|
-| [Source Catalog](docs/SOURCES.md) | All 47 entropy sources with physics explanations |
+| [Source Catalog](docs/SOURCES.md) | All 45 entropy sources with physics explanations |
 | [Conditioning](docs/CONDITIONING.md) | Raw vs VonNeumann vs SHA-256 conditioning modes |
 | [Telemetry Model](docs/TELEMETRY.md) | Experimental telemetry_v1 context model and integration points |
 | [API Reference](docs/API.md) | HTTP server endpoints and response formats |
@@ -133,7 +133,7 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 
 ## Entropy Sources
 
-47 sources across 12 mechanism-based categories. Results from `openentropy bench` on Apple Silicon:
+45 sources across 12 mechanism-based categories. Results from `openentropy bench` on Apple Silicon:
 
 ### Thermal (6)
 
@@ -148,13 +148,12 @@ Each source taps a **physically independent** noise mechanism. The oscillator so
 | `display_pll` | 0.07s | Display PLL phase noise from pixel clock (~533 MHz) domain crossing |
 | `pcie_pll` | 0.10s | PCIe PHY PLL jitter from Thunderbolt/PCIe clock domain crossing |
 
-### Timing (7)
+### Timing (6)
 
 | Source | Time | Description |
 |--------|-----:|-------------|
 | `clock_jitter` | 0.00s | Phase noise between performance counter and monotonic clocks |
 | `mach_timing` | 0.00s | Mach absolute time LSB jitter |
-| `memory_timing` | 0.01s | DRAM access timing variations |
 | `dram_row_buffer` | 0.00s | DRAM row buffer conflict timing |
 | `cache_contention` | 0.01s | CPU cache line contention noise |
 | `page_fault_timing` | 0.01s | Virtual memory page fault latency |
@@ -196,11 +195,10 @@ Each source taps a **physically independent** noise mechanism. The oscillator so
 | `tlb_shootdown` | 0.03s | mprotect() TLB invalidation IPI latency |
 | `amx_timing` | 0.05s | Apple AMX coprocessor matrix dispatch jitter |
 
-### GPU (3)
+### GPU (2)
 
 | Source | Time | Description |
 |--------|-----:|-------------|
-| `gpu_timing` | 46.96s | GPU compute dispatch scheduling jitter |
 | `gpu_divergence` | 0.76s | GPU warp divergence timing variance |
 | `iosurface_crossing` | 0.08s | IOSurface CPU-GPU cross-domain timing |
 
@@ -371,7 +369,7 @@ openentropy sessions sessions/<session-id> --analyze --entropy --telemetry --out
 
 ```toml
 [dependencies]
-openentropy-core = "0.5"
+openentropy-core = "0.7"
 ```
 
 ```rust
@@ -398,7 +396,7 @@ Cargo workspace with 6 crates:
 | `openentropy-wasm` | WebAssembly/browser entropy crate |
 
 ```
-Sources (47) → raw samples → Entropy Pool (XOR combine) → Conditioning (optional) → Output
+Sources (45) → raw samples → Entropy Pool (XOR combine) → Conditioning (optional) → Output
                                                                  │                       ├── Rust API
                                                            ┌─────┴─────┐                ├── CLI / TUI
                                                            │ sha256    │ (default)       ├── HTTP Server
@@ -413,10 +411,10 @@ Sources (47) → raw samples → Entropy Pool (XOR combine) → Conditioning (op
 
 | Platform | Sources | Notes |
 |----------|:-------:|-------|
-| **MacBook (M-series)** | **47/47** | Full suite — WiFi, BLE, camera, mic |
-| **Mac Mini / Studio / Pro** | 39–41 | No built-in camera, mic on some models |
-| **Intel Mac** | ~20 | Some silicon/microarch sources are ARM-specific |
-| **Linux** | 10–15 | Timing, network, disk, process sources |
+| **MacBook (M-series)** | **45/45** | Full suite — WiFi, BLE, camera, mic |
+| **Mac Mini / Studio / Pro** | 37–39 | No built-in camera, mic on some models |
+| **Intel Mac** | ~18 | Some silicon/microarch sources are ARM-specific |
+| **Linux** | 10–13 | Timing, network, disk, process sources |
 
 The library detects available hardware at runtime and only activates working sources.
 

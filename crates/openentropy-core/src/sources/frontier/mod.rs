@@ -35,6 +35,10 @@
 //! to tune for specific hardware or entropy requirements. See each source's
 //! config struct documentation for field descriptions and valid ranges.
 
+// Shared CoreAudio FFI bindings (used by audio_pll_timing + counter_beat).
+#[cfg(target_os = "macos")]
+mod coreaudio_ffi;
+
 // Standalone sources — one independent entropy domain each.
 mod amx_timing;
 mod audio_pll_timing;

@@ -6,7 +6,7 @@
 
 **Causes & Fixes**:
 
-- **Unsupported platform**: OpenEntropy primarily targets macOS on Apple Silicon. Linux support covers ~12 of 47 sources. Windows is not yet supported.
+- **Unsupported platform**: OpenEntropy primarily targets macOS on Apple Silicon. Linux support covers ~12 of 45 sources. Windows is not yet supported.
 - **Permissions**: Some sources require elevated permissions or entitlements. Try running with `sudo` to rule out permission issues.
 - **Binary mismatch**: Ensure you're running a binary built for your architecture (`uname -m` should match the binary target).
 
@@ -38,7 +38,6 @@
 **Explanation**: Some sources are inherently slow:
 - `dns_timing` (~22s) — requires DNS lookups
 - `tcp_connect_timing` (~39s) — requires TCP connections
-- `gpu_timing` (~47s) — requires GPU compute dispatch
 - `spotlight_timing` (~13s) — requires Spotlight indexing
 
 **Fix**: By default, OpenEntropy uses only fast sources (<2s). If you explicitly enabled all sources:

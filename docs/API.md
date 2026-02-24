@@ -159,7 +159,7 @@ pub fn platform_info() -> PlatformInfo
 ```
 
 ```rust
-pub fn all_sources() -> Vec<Box<dyn EntropySource>> // currently 47 sources
+pub fn all_sources() -> Vec<Box<dyn EntropySource>> // currently 45 sources
 ```
 
 ## openentropy-tests
@@ -187,7 +187,7 @@ Crate: `openentropy-server`
 Path: `crates/openentropy-server/`
 
 ```rust
-pub async fn run_server(pool: EntropyPool, host: &str, port: u16, allow_raw: bool)
+pub async fn run_server(pool: EntropyPool, host: &str, port: u16, allow_raw: bool) -> std::io::Result<()>
 ```
 
 HTTP endpoints:
@@ -209,9 +209,8 @@ Subcommands:
 - `bench`
 - `analyze`
 - `stream`
-- `device`
 - `server`
 - `monitor`
-- `report`
 - `record`
 - `sessions`
+- `telemetry`
