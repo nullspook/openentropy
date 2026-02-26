@@ -266,6 +266,66 @@ pub fn read_cntvct() -> u64 {
 }
 
 // ---------------------------------------------------------------------------
+// Safe JIT instruction probe
+// ---------------------------------------------------------------------------
+
+/// Test whether a JIT-generated ARM64 instruction can execute without SIGILL.
+///
+/// Forks a child process that builds a MAP_JIT page with the given instruction
+/// followed by RET, executes it, and exits. If the child exits normally (status 0),
+/// the instruction is safe. If it crashes (SIGILL), only the child dies.
+///
+/// Returns `true` if the instruction executed successfully.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub fn probe_jit_instruction_safe(mrs_instr: u32) -> bool {
+    // Fork: child tests the instruction, parent waits for result.
+    let pid = unsafe { libc::fork() };
+    if pid < 0 {
+        return false; // fork failed
+    }
+    if pid == 0 {
+        // Child process: build JIT page, execute, exit
+        let page = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                4096,
+                libc::PROT_READ | libc::PROT_WRITE | libc::PROT_EXEC,
+                libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | 0x0800, // MAP_JIT
+                -1,
+                0,
+            )
+        };
+        if page == libc::MAP_FAILED {
+            unsafe { libc::_exit(1) };
+        }
+        unsafe {
+            libc::pthread_jit_write_protect_np(0);
+            let code = page as *mut u32;
+            code.write(mrs_instr);
+            code.add(1).write(0xD65F03C0u32); // RET
+            libc::pthread_jit_write_protect_np(1);
+            core::arch::asm!("dc cvau, {p}", "ic ivau, {p}", p = in(reg) page, options(nostack));
+            core::arch::asm!("dsb ish", "isb", options(nostack));
+        }
+        type FnPtr = unsafe extern "C" fn() -> u64;
+        let fn_ptr: FnPtr = unsafe { std::mem::transmute(page) };
+        let _val = unsafe { fn_ptr() };
+        unsafe {
+            libc::munmap(page, 4096);
+            libc::_exit(0); // Success — instruction didn't trap
+        }
+    }
+    // Parent: wait for child
+    let mut status: libc::c_int = 0;
+    let ret = unsafe { libc::waitpid(pid, &mut status, 0) };
+    if ret < 0 {
+        return false;
+    }
+    // Check child exited normally with status 0
+    libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0
+}
+
+// ---------------------------------------------------------------------------
 // XOR-fold
 // ---------------------------------------------------------------------------
 

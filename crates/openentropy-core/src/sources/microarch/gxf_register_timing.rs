@@ -154,12 +154,12 @@ mod imp {
         }
 
         fn is_available(&self) -> bool {
-            // S3_6_c15_c1_5 was verified accessible on M4 Mac mini via systematic JIT sweep.
-            // We assume available on Apple Silicon; actual collection uses JIT page guard.
-            // Future OS versions may revoke EL0 access, in which case collect() returns empty.
+            // S3_6_c15_c1_5 may not be accessible on all Apple Silicon chips/OS versions.
+            // Use a fork-based probe to safely test instruction execution without
+            // risking SIGILL in the main process.
             CHECKED.call_once(|| {
-                // We default to true for Apple Silicon M4; if JIT fails we detect in collect()
-                AVAILABLE.store(true, Ordering::SeqCst);
+                let ok = crate::sources::helpers::probe_jit_instruction_safe(GXF_MRS_X0);
+                AVAILABLE.store(ok, Ordering::SeqCst);
             });
             AVAILABLE.load(Ordering::SeqCst)
         }

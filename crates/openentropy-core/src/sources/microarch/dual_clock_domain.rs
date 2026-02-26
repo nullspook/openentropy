@@ -169,9 +169,11 @@ mod imp {
         }
 
         fn is_available(&self) -> bool {
-            // Verified accessible on M4 Mac mini; may vary by chip/OS version.
-            // MAP_JIT availability is the primary constraint.
-            unsafe { build_timer(APPLE_41MHZ_MRS_X0).is_some() }
+            // These undocumented registers may not be accessible on all Apple
+            // Silicon chips/OS versions. Use a fork-based probe to safely test
+            // without risking SIGILL in the main process.
+            crate::sources::helpers::probe_jit_instruction_safe(APPLE_41MHZ_MRS_X0)
+                && crate::sources::helpers::probe_jit_instruction_safe(APPLE_41MHZ_B_MRS_X0)
         }
 
         fn collect(&self, n_samples: usize) -> Vec<u8> {
