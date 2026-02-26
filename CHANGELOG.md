@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.0 — 2026-02-26
+
+### Added
+
+- **TUI category grouping** — Sources organized into 11 collapsible category groups with `{`/`}` jump navigation, `Space`/`Enter` collapse/expand, and `C` fold all.
+- **14 new entropy sources** across timing, scheduling, network, signal, and microarch categories.
+
+### Changed
+
+- **Source directory reorganization** — 59 sources moved from flat layout into 11 category-based subdirectories (`gpu/`, `io/`, `ipc/`, `microarch/`, `network/`, `scheduling/`, `sensor/`, `signal/`, `system/`, `thermal/`, `timing/`).
+- **Pool batched parallel collection** for improved throughput.
+- Source count increased from 45 to 59.
+
+### Fixed
+
+- **SIGILL crash from undocumented register probes** — Added `probe_jit_instruction_safe()` fork-based probe for `gxf_register_timing` (S3\_6\_c15\_c1\_5) and `dual_clock_domain` (S3\_1\_c15\_c0\_6, S3\_4\_c15\_c10\_5). These undocumented Apple Silicon registers may not be accessible on all chips/OS versions; the fork probe prevents process-killing SIGILL.
+- **cargo fmt** — Applied formatting to all source files.
+- **Source extraction pipeline fixes** — Corrected entropy extraction in `dual_clock_domain` (phase data, not timing deltas), `mach_timing` (raw truncation → proper pipeline), `preemption_boundary` (sparse events), `amx_timing` (deterministic workload → LCG randomization), `clock_jitter` (fake entropy from epoch bytes), `dns_timing`/`tcp_connect` (weak LSB extraction), `smc_highvar_timing`/`getentropy_timing` (cross-platform compatibility).
+- **Invalid entropy rate estimates** — `ane_timing` (1800→3.0), `nvme_iokit_sensors` (1500→3.0).
+- **Slow source timeouts** — `nl_inference_timing` and `spotlight_timing` now reliably complete within pool budget.
+
 ## 0.7.0 — 2026-02-23
 
 ### Changed
