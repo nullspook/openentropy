@@ -37,7 +37,7 @@ target/
 tmp/
 venv/
 product/
-research/internal/
+research/
 
 # Local session/snapshot artifacts
 sessions/

@@ -62,15 +62,15 @@ impl EntropyPool {
     pub fn auto() -> Self {
         let mut pool = Self::new(None);
         for source in crate::platform::detect_available_sources() {
-            pool.add_source(source, 1.0);
+            pool.add_source(source);
         }
         pool
     }
 
     /// Register an entropy source.
-    pub fn add_source(&mut self, source: Box<dyn EntropySource>, weight: f64) {
+    pub fn add_source(&mut self, source: Box<dyn EntropySource>) {
         self.sources
-            .push(Arc::new(Mutex::new(SourceState::new(source, weight))));
+            .push(Arc::new(Mutex::new(SourceState::new(source))));
     }
 
     /// Number of registered sources.
@@ -107,9 +107,9 @@ impl EntropyPool {
             return 0;
         }
 
-        let (tx, rx) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
         let now = Instant::now();
         let mut scheduled: Vec<usize> = Vec::new();
+        let mut to_launch: Vec<(usize, Arc<Mutex<SourceState>>)> = Vec::new();
 
         for (idx, ss_mutex) in self.sources.iter().enumerate() {
             // Skip sources still in backoff.
@@ -131,47 +131,74 @@ impl EntropyPool {
             }
 
             scheduled.push(idx);
-
-            let tx = tx.clone();
-            let src = Arc::clone(ss_mutex);
-            let in_flight = Arc::clone(&self.in_flight);
-            let backoff = Arc::clone(&self.backoff_until);
-
-            std::thread::spawn(move || {
-                let data = Self::collect_one_n(&src, n_samples);
-                {
-                    let mut in_flight = in_flight.lock().unwrap();
-                    in_flight.remove(&idx);
-                }
-                let mut bo = backoff.lock().unwrap();
-                bo.remove(&idx);
-                let _ = tx.send((idx, data));
-            });
+            to_launch.push((idx, Arc::clone(ss_mutex)));
         }
-        drop(tx);
 
         if scheduled.is_empty() {
             return 0;
         }
 
-        let deadline = Instant::now() + timeout;
-        let mut received = HashSet::new();
+        // Limit concurrent collection threads to avoid resource exhaustion.
+        // Many sources use mmap, JIT pages, socket pairs, large allocations —
+        // running all 50+ simultaneously can cause SIGSEGV from memory pressure.
+        let max_concurrent = num_cpus().min(16);
+        let (tx, rx) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
         let mut results = Vec::new();
+        let mut received = HashSet::new();
 
-        while received.len() < scheduled.len() {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                break;
+        for chunk in to_launch.chunks(max_concurrent) {
+            let batch_start = Instant::now();
+
+            for &(idx, ref src) in chunk {
+                let tx = tx.clone();
+                let src = Arc::clone(src);
+                let in_flight = Arc::clone(&self.in_flight);
+                let backoff = Arc::clone(&self.backoff_until);
+
+                std::thread::spawn(move || {
+                    let data = Self::collect_one_n(&src, n_samples);
+                    {
+                        let mut in_flight = in_flight.lock().unwrap();
+                        in_flight.remove(&idx);
+                    }
+                    let mut bo = backoff.lock().unwrap();
+                    bo.remove(&idx);
+                    let _ = tx.send((idx, data));
+                });
             }
-            match rx.recv_timeout(remaining) {
+
+            // Wait for this batch to finish. Each batch gets its own full timeout
+            // window so that slow sources in early batches don't starve later ones.
+            let mut batch_done = 0;
+            while batch_done < chunk.len() {
+                let remaining = timeout.saturating_sub(batch_start.elapsed());
+                if remaining.is_zero() {
+                    break;
+                }
+                match rx.recv_timeout(remaining) {
+                    Ok((idx, data)) => {
+                        received.insert(idx);
+                        if !data.is_empty() {
+                            results.extend_from_slice(&data);
+                        }
+                        batch_done += 1;
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+        drop(tx);
+
+        // Drain any remaining results from threads that finished after batch loops.
+        while received.len() < scheduled.len() {
+            match rx.try_recv() {
                 Ok((idx, data)) => {
                     received.insert(idx);
                     if !data.is_empty() {
                         results.extend_from_slice(&data);
                     }
                 }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(_) => break,
             }
         }
 
@@ -534,6 +561,13 @@ fn getrandom(buf: &mut [u8]) {
     getrandom::fill(buf).expect("OS CSPRNG failed");
 }
 
+/// Number of logical CPUs (for concurrency limits).
+fn num_cpus() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+}
+
 /// Overall health report for the entropy pool.
 #[derive(Debug, Clone)]
 pub struct HealthReport {
@@ -618,6 +652,7 @@ mod tests {
                     requirements: &[],
                     entropy_rate_estimate: 1.0,
                     composite: false,
+                    is_fast: true,
                 },
                 data,
             }
@@ -653,6 +688,7 @@ mod tests {
                     requirements: &[],
                     entropy_rate_estimate: 0.0,
                     composite: false,
+                    is_fast: true,
                 },
             }
         }
@@ -689,16 +725,16 @@ mod tests {
     #[test]
     fn test_pool_add_source() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock1", vec![42])), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock1", vec![42])));
         assert_eq!(pool.source_count(), 1);
     }
 
     #[test]
     fn test_pool_add_multiple_sources() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock1", vec![1])), 1.0);
-        pool.add_source(Box::new(MockSource::new("mock2", vec![2])), 1.0);
-        pool.add_source(Box::new(MockSource::new("mock3", vec![3])), 0.5);
+        pool.add_source(Box::new(MockSource::new("mock1", vec![1])));
+        pool.add_source(Box::new(MockSource::new("mock2", vec![2])));
+        pool.add_source(Box::new(MockSource::new("mock3", vec![3])));
         assert_eq!(pool.source_count(), 3);
     }
 
@@ -711,7 +747,6 @@ mod tests {
         let mut pool = EntropyPool::new(Some(b"test"));
         pool.add_source(
             Box::new(MockSource::new("mock1", vec![0xAA, 0xBB, 0xCC])),
-            1.0,
         );
         let n = pool.collect_all();
         assert!(n > 0, "Should have collected some bytes");
@@ -720,8 +755,8 @@ mod tests {
     #[test]
     fn test_collect_all_parallel_with_timeout() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock1", vec![1, 2])), 1.0);
-        pool.add_source(Box::new(MockSource::new("mock2", vec![3, 4])), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock1", vec![1, 2])));
+        pool.add_source(Box::new(MockSource::new("mock2", vec![3, 4])));
         let n = pool.collect_all_parallel(5.0);
         assert!(n > 0);
     }
@@ -729,8 +764,8 @@ mod tests {
     #[test]
     fn test_collect_enabled_filters_sources() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("alpha", vec![1])), 1.0);
-        pool.add_source(Box::new(MockSource::new("beta", vec![2])), 1.0);
+        pool.add_source(Box::new(MockSource::new("alpha", vec![1])));
+        pool.add_source(Box::new(MockSource::new("beta", vec![2])));
 
         let enabled = vec!["alpha".to_string()];
         let n = pool.collect_enabled(&enabled);
@@ -740,7 +775,7 @@ mod tests {
     #[test]
     fn test_collect_enabled_no_match() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("alpha", vec![1])), 1.0);
+        pool.add_source(Box::new(MockSource::new("alpha", vec![1])));
 
         let enabled = vec!["nonexistent".to_string()];
         let n = pool.collect_enabled(&enabled);
@@ -754,7 +789,7 @@ mod tests {
     #[test]
     fn test_get_raw_bytes_length() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let bytes = pool.get_raw_bytes(64);
         assert_eq!(bytes.len(), 64);
     }
@@ -762,7 +797,7 @@ mod tests {
     #[test]
     fn test_get_random_bytes_length() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let bytes = pool.get_random_bytes(64);
         assert_eq!(bytes.len(), 64);
     }
@@ -770,7 +805,7 @@ mod tests {
     #[test]
     fn test_get_random_bytes_various_sizes() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         for size in [1, 16, 32, 64, 100, 256] {
             let bytes = pool.get_random_bytes(size);
             assert_eq!(bytes.len(), size, "Expected {size} bytes");
@@ -780,7 +815,7 @@ mod tests {
     #[test]
     fn test_get_bytes_raw_mode() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let bytes = pool.get_bytes(32, crate::conditioning::ConditioningMode::Raw);
         assert_eq!(bytes.len(), 32);
     }
@@ -788,7 +823,7 @@ mod tests {
     #[test]
     fn test_get_bytes_sha256_mode() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let bytes = pool.get_bytes(32, crate::conditioning::ConditioningMode::Sha256);
         assert_eq!(bytes.len(), 32);
     }
@@ -796,7 +831,7 @@ mod tests {
     #[test]
     fn test_get_bytes_von_neumann_mode() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let bytes = pool.get_bytes(16, crate::conditioning::ConditioningMode::VonNeumann);
         // VonNeumann may produce fewer bytes due to debiasing yield
         assert!(bytes.len() <= 16);
@@ -823,7 +858,6 @@ mod tests {
         let mut pool = EntropyPool::new(Some(b"test"));
         pool.add_source(
             Box::new(MockSource::new("good_source", (0..=255).collect())),
-            1.0,
         );
         pool.collect_all();
         let report = pool.health_report();
@@ -837,7 +871,7 @@ mod tests {
     #[test]
     fn test_health_report_failing_source() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(FailingSource::new("bad_source")), 1.0);
+        pool.add_source(Box::new(FailingSource::new("bad_source")));
         pool.collect_all();
         let report = pool.health_report();
         assert_eq!(report.total, 1);
@@ -849,8 +883,8 @@ mod tests {
     #[test]
     fn test_health_report_mixed_sources() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("good", (0..=255).collect())), 1.0);
-        pool.add_source(Box::new(FailingSource::new("bad")), 1.0);
+        pool.add_source(Box::new(MockSource::new("good", (0..=255).collect())));
+        pool.add_source(Box::new(FailingSource::new("bad")));
         pool.collect_all();
         let report = pool.health_report();
         assert_eq!(report.total, 2);
@@ -862,7 +896,7 @@ mod tests {
     #[test]
     fn test_health_report_tracks_output_bytes() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", (0..=255).collect())));
         let _ = pool.get_random_bytes(64);
         let report = pool.health_report();
         assert!(report.output_bytes >= 64);
@@ -882,7 +916,7 @@ mod tests {
     #[test]
     fn test_source_infos_populated() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("test_src", vec![1])), 1.0);
+        pool.add_source(Box::new(MockSource::new("test_src", vec![1])));
         let infos = pool.source_infos();
         assert_eq!(infos.len(), 1);
         assert_eq!(infos[0].name, "test_src");
@@ -898,9 +932,9 @@ mod tests {
     #[test]
     fn test_different_seeds_differ() {
         let mut pool1 = EntropyPool::new(Some(b"seed_a"));
-        pool1.add_source(Box::new(MockSource::new("m", vec![42; 100])), 1.0);
+        pool1.add_source(Box::new(MockSource::new("m", vec![42; 100])));
         let mut pool2 = EntropyPool::new(Some(b"seed_b"));
-        pool2.add_source(Box::new(MockSource::new("m", vec![42; 100])), 1.0);
+        pool2.add_source(Box::new(MockSource::new("m", vec![42; 100])));
 
         let bytes1 = pool1.get_random_bytes(32);
         let bytes2 = pool2.get_random_bytes(32);
@@ -924,7 +958,7 @@ mod tests {
     #[test]
     fn test_collect_enabled_empty_list() {
         let mut pool = EntropyPool::new(Some(b"test"));
-        pool.add_source(Box::new(MockSource::new("mock", vec![1])), 1.0);
+        pool.add_source(Box::new(MockSource::new("mock", vec![1])));
         let n = pool.collect_enabled(&[]);
         assert_eq!(n, 0);
     }

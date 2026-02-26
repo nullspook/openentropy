@@ -1,103 +1,48 @@
-//! All entropy source implementations.
+//! All entropy source implementations, organized by category.
 //!
 //! ## Source Categories
 //!
-//! - **Sensor**: Camera dark-frame noise, audio ADC noise
-//! - **Thermal**: Johnson-Nyquist noise in oscillators
-//! - **Timing**: Clock jitter, scheduler noise
-//! - **System**: Kernel counters, process state
-//! - **IO**: Disk, network timing
-//! - **Silicon**: Cache, DRAM, pipeline state
+//! - **Timing**: Clock jitter, DRAM row buffer, page fault timing
+//! - **Scheduling**: Sleep jitter, thread lifecycle, timer coalescing
+//! - **System**: Kernel counters, process state, IORegistry
+//! - **Network**: DNS timing, TCP handshake, WiFi RSSI
+//! - **IO**: Disk latency, NVMe sensors, fsync journaling
+//! - **Sensor**: Camera noise, audio ADC noise, Bluetooth RSSI
+//! - **Microarch**: Branch prediction, TLB shootdown, AMX timing
+//! - **IPC**: Mach ports, pipes, kqueue, keychain
+//! - **Thermal**: PLL clock domain crossings (audio, display, PCIe)
+//! - **GPU**: Metal divergence, IOSurface crossing, NL inference
+//! - **Signal**: Compression timing, hash timing, Spotlight
 
 pub mod helpers;
 
-pub mod audio;
-pub mod bluetooth;
-pub mod camera;
-pub mod compression;
-pub mod cross_domain;
-pub mod disk;
-pub mod frontier;
-pub mod ioregistry;
+pub mod gpu;
+pub mod io;
+pub mod ipc;
+pub mod microarch;
 pub mod network;
-pub mod novel;
-pub mod process;
-
-pub mod silicon;
-pub mod sysctl;
+pub mod scheduling;
+pub mod sensor;
+pub mod signal;
+pub mod system;
+pub mod thermal;
 pub mod timing;
-pub mod vmstat;
-pub mod wifi;
 
 use crate::source::EntropySource;
 
-/// All entropy source constructors. Each returns a boxed source.
+/// All entropy source constructors, composed from category modules.
 pub fn all_sources() -> Vec<Box<dyn EntropySource>> {
-    vec![
-        // Timing
-        Box::new(timing::ClockJitterSource),
-        Box::new(timing::MachTimingSource),
-        Box::new(timing::SleepJitterSource),
-        // System
-        Box::new(sysctl::SysctlSource::new()),
-        Box::new(vmstat::VmstatSource::new()),
-        Box::new(process::ProcessSource::new()),
-        // Network
-        Box::new(network::DNSTimingSource::new()),
-        Box::new(network::TCPConnectSource::new()),
-        Box::new(wifi::WiFiRSSISource::new()),
-        // Hardware
-        Box::new(disk::DiskIOSource),
-        Box::new(audio::AudioNoiseSource::default()),
-        Box::new(camera::CameraNoiseSource::default()),
-        Box::new(bluetooth::BluetoothNoiseSource),
-        // Silicon
-        Box::new(silicon::DRAMRowBufferSource),
-        Box::new(silicon::CacheContentionSource),
-        Box::new(silicon::PageFaultTimingSource),
-        Box::new(silicon::SpeculativeExecutionSource),
-        // IORegistry
-        Box::new(ioregistry::IORegistryEntropySource),
-        // Cross-domain beat
-        Box::new(cross_domain::CPUIOBeatSource),
-        Box::new(cross_domain::CPUMemoryBeatSource),
-        // Compression/hash timing
-        Box::new(compression::CompressionTimingSource),
-        Box::new(compression::HashTimingSource),
-        // Novel
-        Box::new(novel::DispatchQueueSource),
-        Box::new(novel::VMPageTimingSource),
-        Box::new(novel::SpotlightTimingSource),
-        // Frontier (novel unexplored sources)
-        Box::new(frontier::AMXTimingSource::default()),
-        Box::new(frontier::ThreadLifecycleSource),
-        Box::new(frontier::MachIPCSource::default()),
-        Box::new(frontier::TLBShootdownSource::default()),
-        Box::new(frontier::PipeBufferSource::default()),
-        Box::new(frontier::KqueueEventsSource::default()),
-        Box::new(frontier::DVFSRaceSource),
-        Box::new(frontier::CASContentionSource::default()),
-        Box::new(frontier::KeychainTimingSource::default()),
-        // Frontier: thermal noise research (2026-02-14)
-        Box::new(frontier::DenormalTimingSource),
-        Box::new(frontier::AudioPLLTimingSource),
-        Box::new(frontier::USBTimingSource),
-        // Frontier: unprecedented entropy sources (2026-02-14)
-        Box::new(frontier::NVMeLatencySource),
-        Box::new(frontier::GPUDivergenceSource),
-        Box::new(frontier::PDNResonanceSource),
-        Box::new(frontier::IOSurfaceCrossingSource),
-        Box::new(frontier::FsyncJournalSource),
-        // Frontier: two-oscillator beat frequency (CPU counter vs audio PLL)
-        Box::new(frontier::CounterBeatSource),
-        // Frontier: independent oscillator/PLL sources (2026-02-15)
-        Box::new(frontier::DisplayPllSource),
-        Box::new(frontier::PciePllSource),
-        // Frontier: novel hardware domain sources (2026-02-22)
-        Box::new(frontier::AneTimingSource),
-        // Frontier: NVMe kernel-level entropy sources
-        Box::new(frontier::NvmeIokitSensorsSource),
-        Box::new(frontier::NvmeRawDeviceSource),
-        Box::new(frontier::NvmePassthroughLinuxSource),
-    ]
+    let mut v = Vec::with_capacity(64);
+    v.extend(timing::sources());
+    v.extend(scheduling::sources());
+    v.extend(system::sources());
+    v.extend(network::sources());
+    v.extend(io::sources());
+    v.extend(sensor::sources());
+    v.extend(microarch::sources());
+    v.extend(ipc::sources());
+    v.extend(thermal::sources());
+    v.extend(gpu::sources());
+    v.extend(signal::sources());
+    v
 }
