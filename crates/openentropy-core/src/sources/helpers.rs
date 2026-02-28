@@ -453,7 +453,7 @@ pub fn extract_delta_bytes_i64(deltas: &[i64], n_samples: usize) -> Vec<u8> {
 /// Takes pairs of consecutive timing deltas. If they differ, emit one bit
 /// based on their relative order (first < second → 1, else → 0). This
 /// removes bias from the raw timing stream at the cost of ~50% data loss.
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(target_os = "macos")]
 pub fn extract_timing_entropy_debiased(timings: &[u64], n_samples: usize) -> Vec<u8> {
     if timings.len() < 4 {
         return Vec::new();

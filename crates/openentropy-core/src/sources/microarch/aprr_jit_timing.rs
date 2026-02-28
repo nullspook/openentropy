@@ -78,9 +78,8 @@
 
 use crate::source::{EntropySource, Platform, SourceCategory, SourceInfo};
 
-use crate::sources::helpers::extract_timing_entropy_debiased;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-use crate::sources::helpers::mach_time;
+use crate::sources::helpers::{extract_timing_entropy_debiased, mach_time};
 
 static APRR_JIT_TIMING_INFO: SourceInfo = SourceInfo {
     name: "aprr_jit_timing",

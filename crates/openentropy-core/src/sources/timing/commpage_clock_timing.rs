@@ -55,9 +55,8 @@
 
 use crate::source::{EntropySource, Platform, SourceCategory, SourceInfo};
 
-use crate::sources::helpers::extract_timing_entropy_debiased;
 #[cfg(target_os = "macos")]
-use crate::sources::helpers::mach_time;
+use crate::sources::helpers::{extract_timing_entropy_debiased, mach_time};
 
 static COMMPAGE_CLOCK_TIMING_INFO: SourceInfo = SourceInfo {
     name: "commpage_clock_timing",

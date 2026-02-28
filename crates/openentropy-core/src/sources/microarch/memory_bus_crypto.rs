@@ -33,12 +33,11 @@
 //! implementation detail of the memory controller that falls below the level
 //! of any published hardware specification.
 
-use std::ptr;
-
 use crate::source::{EntropySource, Platform, SourceCategory, SourceInfo};
-use crate::sources::helpers::extract_timing_entropy;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-use crate::sources::helpers::mach_time;
+use crate::sources::helpers::{extract_timing_entropy, mach_time};
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+use std::ptr;
 
 static MEMORY_BUS_CRYPTO_INFO: SourceInfo = SourceInfo {
     name: "memory_bus_crypto",
