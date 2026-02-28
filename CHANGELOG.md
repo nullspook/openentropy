@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.0 — 2026-02-28
+
+### Added
+
+- **Quantum source category** — New `SourceCategory::Quantum` and `Requirement::QCicada` for true quantum random number generators.
+- **QCicada USB QRNG source** — Crypta Labs QCicada integration via the `qcicada` crate. Reads photonic shot noise entropy at 8 bits/byte. Supports three on-device modes: `raw`, `sha256`, `samples`. Auto-detects USB serial port.
+- **`--qcicada-mode` CLI flag** — Set QCicada post-processing mode (`raw`/`sha256`/`samples`) on `bench`, `analyze`, `record`, `stream`, and `scan` commands.
+- **`record --all`** — Record from every available source with a single flag.
+- **TUI multiselect recording** — Select multiple sources with `Space`/`Enter`, then press `r` to record from all selected simultaneously.
+- **TUI help modal** — Press `?` for a full keybinding reference overlay.
+- **TUI category grouping** — Sources organized into collapsible category groups with `{`/`}` jump navigation and `C` fold all.
+- **Requirement metadata** — `icon()`, `label()`, `from_display_name()` helpers on `Requirement` enum for CLI/TUI display.
+
+### Changed
+
+- **Analyze command redesigned** — Replaced verdict-driven summary/detailed views with compact forensic output (spectral, bias, stationarity, runs, distribution). Removed `--view` flag. `--entropy` is now opt-in (was `--no-entropy`).
+- **Pool batched parallel collection** — Fixed batch counting to only track current chunk indices; added 50ms drain timeout for threads completing after batch loops.
+- **Pool `collect_enabled_n`** — Now uses detached threads with 10-second timeout instead of scoped threads, preventing hangs on slow sources.
+- **`record` source arg no longer required** — Positional source names are optional when `--all` is used.
+- **`QCicadaConfig` via `OnceLock`** — Thread-safe CLI mode override without `unsafe set_var`.
+
+### Fixed
+
+- **QCicada returns 0 bytes after prior session** — Added retry with 500ms backoff on `try_open()` and reconnect-on-error for `random()` calls. USB serial devices need settle time after handle release.
+- **Analyze/report empty data from hardware sources** — Both `run_analysis()` and `run_report()` retry `collect()` once after 1-second delay when a source returns empty data.
+
 ## 0.8.0 — 2026-02-27
 
 ### Added
