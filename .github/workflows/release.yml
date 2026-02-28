@@ -322,6 +322,10 @@ jobs:
         if: steps.check_token.outputs.skip == 'true'
         run: echo "Skipping PyPI publish - no token configured"
 
+      - name: Install system dependencies
+        if: steps.check_token.outputs.skip != 'true'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Install Rust toolchain
         if: steps.check_token.outputs.skip != 'true'
         uses: dtolnay/rust-toolchain@stable
