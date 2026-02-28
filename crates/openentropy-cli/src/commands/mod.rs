@@ -16,6 +16,17 @@ use openentropy_core::analysis::CrossCorrMatrix;
 use openentropy_core::conditioning::ConditioningMode;
 use openentropy_core::platform::detect_available_sources;
 
+/// Set the QCicada mode before source discovery so that
+/// `QCicadaConfig::default()` picks it up at construction time.
+/// Uses a thread-safe `OnceLock` instead of `std::env::set_var` to avoid UB.
+#[allow(unused)]
+pub fn apply_qcicada_mode(mode: Option<&str>) {
+    if let Some(m) = mode {
+        let _ =
+            openentropy_core::sources::quantum::qcicada_source::QCICADA_CLI_MODE.set(m.to_string());
+    }
+}
+
 /// Build an EntropyPool, optionally filtering sources by name.
 /// If no filter is given, only fast sources (is_fast=true) are included to avoid hangs.
 /// Use `--sources all` to include every available source.
@@ -48,9 +59,13 @@ pub fn make_pool(source_filter: Option<&str>) -> EntropyPool {
         }
     }
 
-    if pool.source_count() == 0 {
-        eprintln!("Warning: no sources matched filter, using all fast sources");
+    if pool.source_count() == 0 && source_filter.is_some() {
+        eprintln!("Warning: no sources matched filter, falling back to fast sources");
         return make_pool(None);
+    }
+    if pool.source_count() == 0 {
+        eprintln!("Error: no entropy sources available on this platform.");
+        std::process::exit(1);
     }
     pool
 }
@@ -94,25 +109,22 @@ pub fn find_source(name: &str) -> Option<Box<dyn EntropySource>> {
 /// Find multiple sources by name. Each name is matched exactly first, then partially.
 pub fn find_sources(names: &[String]) -> Vec<Box<dyn EntropySource>> {
     let sources = detect_available_sources();
-    let mut result: Vec<Box<dyn EntropySource>> = Vec::new();
     let mut used_indices = std::collections::HashSet::new();
 
     for name in names {
-        // Exact match first
-        if let Some(idx) = sources
+        let lower = name.to_lowercase();
+        // Exact match first, then partial
+        let idx = sources
             .iter()
             .enumerate()
-            .position(|(i, s)| !used_indices.contains(&i) && s.name() == name)
-        {
-            used_indices.insert(idx);
-            continue; // collect later
-        }
-        // Partial match fallback
-        let lower = name.to_lowercase();
-        if let Some(idx) = sources.iter().enumerate().position(|(i, s)| {
-            !used_indices.contains(&i) && s.name().to_lowercase().contains(&lower)
-        }) {
-            used_indices.insert(idx);
+            .find(|(i, s)| !used_indices.contains(i) && s.name() == name)
+            .or_else(|| {
+                sources.iter().enumerate().find(|(i, s)| {
+                    !used_indices.contains(i) && s.name().to_lowercase().contains(&lower)
+                })
+            });
+        if let Some((i, _)) = idx {
+            used_indices.insert(i);
         } else {
             eprintln!("Warning: source '{name}' not found, skipping.");
         }
@@ -121,6 +133,7 @@ pub fn find_sources(names: &[String]) -> Vec<Box<dyn EntropySource>> {
     // Collect in detection order for determinism
     let mut indices: Vec<usize> = used_indices.into_iter().collect();
     indices.sort();
+    let mut result = Vec::with_capacity(indices.len());
     for (i, source) in sources.into_iter().enumerate() {
         if indices.contains(&i) {
             result.push(source);
@@ -129,30 +142,12 @@ pub fn find_sources(names: &[String]) -> Vec<Box<dyn EntropySource>> {
     result
 }
 
-/// Resolve sources from positional args, --all flag, or default (fast sources).
-pub enum ResolvedSources {
-    /// Specific sources resolved from positional args.
-    Specific(Vec<Box<dyn EntropySource>>),
-    /// All available sources (--all flag).
-    All(Vec<Box<dyn EntropySource>>),
-    /// Default fast sources.
-    Fast(Vec<Box<dyn EntropySource>>),
-}
-
-impl ResolvedSources {
-    pub fn into_vec(self) -> Vec<Box<dyn EntropySource>> {
-        match self {
-            Self::Specific(v) | Self::All(v) | Self::Fast(v) => v,
-        }
-    }
-}
-
 /// Resolve source arguments into a list of sources.
 ///
 /// - If positional names are given, look them up.
 /// - If `--all` is set, return all available sources.
 /// - Otherwise return fast sources only.
-pub fn resolve_sources(positional: &[String], all: bool) -> ResolvedSources {
+pub fn resolve_sources(positional: &[String], all: bool) -> Vec<Box<dyn EntropySource>> {
     if !positional.is_empty() {
         let sources = find_sources(positional);
         if sources.is_empty() {
@@ -161,7 +156,7 @@ pub fn resolve_sources(positional: &[String], all: bool) -> ResolvedSources {
             );
             std::process::exit(1);
         }
-        return ResolvedSources::Specific(sources);
+        return sources;
     }
 
     let all_sources = detect_available_sources();
@@ -171,7 +166,7 @@ pub fn resolve_sources(positional: &[String], all: bool) -> ResolvedSources {
             eprintln!("No sources available on this platform.");
             std::process::exit(1);
         }
-        return ResolvedSources::All(all_sources);
+        return all_sources;
     }
 
     // Default: fast sources only (derived from SourceInfo.is_fast)
@@ -185,7 +180,7 @@ pub fn resolve_sources(positional: &[String], all: bool) -> ResolvedSources {
         std::process::exit(1);
     }
 
-    ResolvedSources::Fast(fast)
+    fast
 }
 
 /// Print a cross-correlation matrix summary to stdout.

@@ -79,11 +79,15 @@ enum Commands {
         /// Skip conditioned pool output quality section
         #[arg(long)]
         no_pool: bool,
+
+        /// QCicada QRNG post-processing mode
+        #[arg(long, value_parser = ["raw", "sha256", "samples"])]
+        qcicada_mode: Option<String>,
     },
 
-    /// Statistical analysis: autocorrelation, spectral, bias, stationarity, runs.
-    /// Min-entropy breakdown (MCV + diagnostics) is included by default.
-    /// Use --report to also run the NIST-inspired test battery with pass/fail and p-values.
+    /// Forensic source analysis: autocorrelation, spectral, bias, stationarity, runs.
+    /// Deep statistical tests that bench doesn't cover.
+    /// Use --report to run the NIST-inspired test battery with pass/fail and p-values.
     Analyze {
         /// Source name(s) — positional, optional
         #[arg(value_name = "SOURCE")]
@@ -109,17 +113,13 @@ enum Commands {
         #[arg(long)]
         cross_correlation: bool,
 
-        /// Skip min-entropy estimators per source
+        /// Include min-entropy breakdown (MCV + diagnostic estimators) per source
         #[arg(long)]
-        no_entropy: bool,
+        entropy: bool,
 
         /// Conditioning mode: raw (default), vonneumann, sha256
         #[arg(long, default_value = "raw", value_parser = ["raw", "vonneumann", "sha256"])]
         conditioning: String,
-
-        /// Output view: summary (default, verdict-driven) or detailed (full metrics)
-        #[arg(long, default_value = "summary", value_parser = ["summary", "detailed"])]
-        view: String,
 
         /// Include telemetry_v1 start/end environment snapshots in output.
         #[arg(long)]
@@ -129,17 +129,25 @@ enum Commands {
         /// When combined with --output, writes a Markdown report.
         #[arg(long)]
         report: bool,
+
+        /// QCicada QRNG post-processing mode
+        #[arg(long, value_parser = ["raw", "sha256", "samples"])]
+        qcicada_mode: Option<String>,
     },
 
     /// Record entropy samples to disk for offline analysis
     Record {
-        /// Source name(s) to record from (required: at least one)
-        #[arg(value_name = "SOURCE", required = true)]
+        /// Source name(s) to record from
+        #[arg(value_name = "SOURCE")]
         source: Vec<String>,
 
         /// Comma-separated source names (hidden, use positional args instead)
         #[arg(long, hide = true)]
         sources: Option<String>,
+
+        /// Include all sources (including slow ones)
+        #[arg(long)]
+        all: bool,
 
         /// Maximum recording duration (e.g. "5m", "30s", "1h")
         #[arg(long)]
@@ -172,6 +180,10 @@ enum Commands {
         /// Store telemetry_v1 start/end snapshots in session.json.
         #[arg(long)]
         telemetry: bool,
+
+        /// QCicada QRNG post-processing mode
+        #[arg(long, value_parser = ["raw", "sha256", "samples"])]
+        qcicada_mode: Option<String>,
     },
 
     /// Live interactive entropy dashboard (TUI)
@@ -232,6 +244,10 @@ enum Commands {
         /// Create a FIFO (named pipe) at this path and feed entropy to readers
         #[arg(long)]
         fifo: Option<String>,
+
+        /// QCicada QRNG post-processing mode
+        #[arg(long, value_parser = ["raw", "sha256", "samples"])]
+        qcicada_mode: Option<String>,
     },
 
     /// List and analyze recorded entropy sessions
@@ -262,6 +278,10 @@ enum Commands {
 
     /// Start an HTTP entropy server (ANU QRNG API compatible)
     Server {
+        /// Source name(s) to include in the pool
+        #[arg(value_name = "SOURCE")]
+        source: Vec<String>,
+
         /// Port to listen on
         #[arg(long, default_value = "8042")]
         port: u16,
@@ -270,8 +290,8 @@ enum Commands {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
 
-        /// Comma-separated source name filter
-        #[arg(long)]
+        /// Comma-separated source name filter (hidden: use positional args instead)
+        #[arg(long, hide = true)]
         sources: Option<String>,
 
         /// Allow conditioning mode selection via ?conditioning=raw|vonneumann|sha256
@@ -281,17 +301,6 @@ enum Commands {
         /// Print a telemetry_v1 snapshot at server startup.
         #[arg(long)]
         telemetry: bool,
-    },
-
-    /// Capture telemetry_v1 as a standalone snapshot or timed window
-    Telemetry {
-        /// Window duration in seconds (0 = single snapshot).
-        #[arg(long, default_value = "0")]
-        window_sec: f64,
-
-        /// Write telemetry JSON to path.
-        #[arg(long)]
-        output: Option<String>,
     },
 }
 
@@ -319,7 +328,9 @@ fn main() {
             telemetry,
             output,
             no_pool,
+            qcicada_mode,
         } => {
+            commands::apply_qcicada_mode(qcicada_mode.as_deref());
             let positional = merge_positional_and_legacy(&source, sources.as_deref());
             commands::bench::run(commands::bench::BenchArgs {
                 positional,
@@ -343,12 +354,13 @@ fn main() {
             samples,
             output,
             cross_correlation,
-            no_entropy,
+            entropy,
             conditioning,
-            view,
             telemetry,
             report,
+            qcicada_mode,
         } => {
+            commands::apply_qcicada_mode(qcicada_mode.as_deref());
             let positional = merge_positional_and_legacy(&source, sources.as_deref());
             commands::analyze::run(commands::analyze::AnalyzeArgs {
                 positional,
@@ -356,9 +368,8 @@ fn main() {
                 samples,
                 output,
                 cross_correlation,
-                entropy: !no_entropy,
+                entropy,
                 conditioning,
-                view,
                 include_telemetry: telemetry,
                 report,
             })
@@ -366,6 +377,7 @@ fn main() {
         Commands::Record {
             source,
             sources,
+            all,
             duration,
             tags,
             note,
@@ -374,15 +386,18 @@ fn main() {
             analyze,
             conditioning,
             telemetry,
+            qcicada_mode,
         } => {
+            commands::apply_qcicada_mode(qcicada_mode.as_deref());
             let positional = merge_positional_and_legacy(&source, sources.as_deref());
-            if positional.is_empty() {
-                eprintln!("Error: at least one source name is required for recording.");
+            if positional.is_empty() && !all {
+                eprintln!("Error: at least one source name or --all is required for recording.");
                 eprintln!("Run 'openentropy scan' to list available sources.");
                 std::process::exit(1);
             }
             commands::record::run(commands::record::RecordArgs {
                 positional,
+                all,
                 duration,
                 tags,
                 note,
@@ -417,7 +432,9 @@ fn main() {
             pool,
             all,
             fifo,
+            qcicada_mode,
         } => {
+            commands::apply_qcicada_mode(qcicada_mode.as_deref());
             let positional = merge_positional_and_legacy(&source, sources.as_deref());
             commands::stream::run(commands::stream::StreamArgs {
                 positional,
@@ -446,14 +463,20 @@ fn main() {
             telemetry,
         ),
         Commands::Server {
+            source,
             port,
             host,
             sources,
             allow_raw,
             telemetry,
-        } => commands::server::run(&host, port, sources.as_deref(), allow_raw, telemetry),
-        Commands::Telemetry { window_sec, output } => {
-            commands::telemetry::run(window_sec, output.as_deref())
+        } => {
+            let positional = merge_positional_and_legacy(&source, sources.as_deref());
+            let source_filter = if positional.is_empty() {
+                None
+            } else {
+                Some(positional.join(","))
+            };
+            commands::server::run(&host, port, source_filter.as_deref(), allow_raw, telemetry)
         }
     }
 }
