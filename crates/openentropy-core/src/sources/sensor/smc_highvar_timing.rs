@@ -93,6 +93,7 @@ static SMC_HIGHVAR_TIMING_INFO: SourceInfo = SourceInfo {
 pub struct SMCHighVarTimingSource;
 
 // Inline IOKit declarations mirrored from smc_thermal_jitter.rs
+#[cfg(target_os = "macos")]
 mod smc_hv {
     use std::ffi::c_void;
 
