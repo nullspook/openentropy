@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.10.0 — 2026-03-01
+
+### Added
+
+- **Python SDK: 21 new analysis/comparison/trials bindings** — Full programmatic parity with CLI analysis capabilities via PyO3.
+- **9 analysis functions** — `full_analysis`, `autocorrelation_profile`, `spectral_analysis`, `bit_bias`, `distribution_stats`, `stationarity_test`, `runs_analysis`, `cross_correlation_matrix`, `pearson_correlation`. All accept `bytes` and return `dict` (or `float` for `pearson_correlation`).
+- **9 comparison functions** — `compare`, `aggregate_delta`, `two_sample_tests`, `cliffs_delta`, `temporal_analysis`, `digram_analysis`, `markov_analysis`, `multi_lag_analysis`, `run_length_comparison`. Differential statistical analysis between two byte streams.
+- **3 trials functions** — `trial_analysis`, `stouffer_combine`, `calibration_check`. PEAR-style trial analysis with Stouffer combination across sessions.
+- **`pythonize`/`depythonize` serialization** — All Rust structs serialized to Python dicts via `pythonize`. `stouffer_combine` accepts Python dicts and deserializes via `depythonize` for round-trip support.
+- **Comparison module re-exports** — `openentropy_core::compare()`, `openentropy_core::ComparisonResult`, etc. now accessible from crate root.
+- **CLI `compare` subcommand** — Differential session comparison with forensic analysis (KS, chi-squared, Cliff's delta, temporal anomalies, Markov, digram, run-length).
+- **CLI analysis profiles** — `--profile quick|standard|deep|security` presets for `analyze`, `sessions`, and `compare` commands.
+- **Core `comparison` module** — 9 comparison functions and 9 result types for forensic session comparison.
+- **Core `trials` module** — PEAR-style trial analysis with configurable bits-per-trial, terminal Z-scores, Stouffer combination, and calibration gating.
+- **55 pytest tests** — Full coverage for all 21 Python bindings with edge cases, value bounds, and round-trip tests.
+
+### Changed
+
+- **Python `__init__.py`** — All 21 new functions exported alongside existing 12.
+- **Documentation updated** — `PYTHON_SDK.md` (Analysis/Comparison/Trials sections), `ARCHITECTURE.md` (submodule listing, pythonize dep), `README.md` (Rust API examples), core `README.md` (feature list).
+
 ## 0.9.0 — 2026-02-28
 
 ### Added
