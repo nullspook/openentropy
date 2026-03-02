@@ -335,11 +335,7 @@ fn normal_cdf(x: f64) -> f64 {
     let pdf = (-0.5 * abs_x * abs_x).exp() / (2.0 * std::f64::consts::PI).sqrt();
     let cdf = 1.0 - pdf * (B1 * t + B2 * t2 + B3 * t3 + B4 * t4 + B5 * t5);
 
-    if x >= 0.0 {
-        cdf
-    } else {
-        1.0 - cdf
-    }
+    if x >= 0.0 { cdf } else { 1.0 - cdf }
 }
 
 // ---------------------------------------------------------------------------
@@ -402,7 +398,7 @@ mod tests {
         let result = trial_analysis(&data, &config);
 
         assert_eq!(result.num_trials, 100); // 2500 / 25 = 100 trials
-                                            // For pseudo-random data, Z should be small and effect size tiny
+        // For pseudo-random data, Z should be small and effect size tiny
         assert!(
             result.terminal_z.abs() < 4.0,
             "terminal_z={} too large for PRNG",
