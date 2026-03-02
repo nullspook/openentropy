@@ -1145,6 +1145,8 @@ dependencies = [
  "openentropy-core",
  "openentropy-tests",
  "pyo3",
+ "pyo3-build-config",
+ "pythonize",
 ]
 
 [[package]]
@@ -1377,10 +1379,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "qcicada"
-version = "0.2.0"
+name = "pythonize"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1621545f55954c57fe1c931efc61a1aaafcb0dc080b2578c481d1f9225665c4"
+checksum = "91a6ee7a084f913f98d70cdc3ebec07e852b735ae3059a1500db2661265da9ff"
+dependencies = [
+ "pyo3",
+ "serde",
+]
+
+[[package]]
+name = "qcicada"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de1c09486d02cac7384aece7ca959eeeab833328ed7f960070a7e6e4304c465"
 dependencies = [
  "log",
  "p256",
