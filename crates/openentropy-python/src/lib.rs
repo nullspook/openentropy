@@ -10,8 +10,12 @@ use openentropy_core::conditioning::ConditioningMode;
 use openentropy_core::pool::EntropyPool as RustPool;
 
 mod analysis_bindings;
+mod bench_bindings;
 mod chaos_bindings;
 mod comparison_bindings;
+mod dispatcher_bindings;
+mod record_bindings;
+mod sessions_bindings;
 mod trials_bindings;
 
 fn parse_conditioning_mode(conditioning: &str) -> PyResult<ConditioningMode> {
@@ -363,8 +367,12 @@ fn openentropy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(quick_quality, m)?)?;
     m.add_function(wrap_pyfunction!(version, m)?)?;
     analysis_bindings::register(m)?;
+    bench_bindings::register(m)?;
     chaos_bindings::register(m)?;
     comparison_bindings::register(m)?;
+    dispatcher_bindings::register(m)?;
+    record_bindings::register(m)?;
+    sessions_bindings::register(m)?;
     trials_bindings::register(m)?;
     Ok(())
 }

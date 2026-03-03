@@ -42,9 +42,11 @@
 //! collects from all registered sources and concatenates their byte streams.
 
 pub mod analysis;
+pub mod benchmark;
 pub mod chaos;
 pub mod comparison;
 pub mod conditioning;
+pub mod dispatcher;
 pub(crate) mod math;
 pub mod platform;
 pub mod pool;
@@ -60,6 +62,9 @@ pub use analysis::{
     SourceAnalysis, SpectralResult, StationarityResult, autocorrelation_profile, bit_bias,
     cross_correlation_matrix, distribution_stats, full_analysis, pearson_correlation,
     runs_analysis, spectral_analysis, stationarity_test,
+};
+pub use benchmark::{
+    BenchConfig, BenchReport, BenchSourceReport, PoolQualityReport, RankBy, benchmark_sources,
 };
 pub use chaos::{
     BiEntropyResult, ChaosAnalysis, CorrelationDimResult, EpiplexityResult, HurstResult,
@@ -77,11 +82,14 @@ pub use conditioning::{
     min_entropy_estimate, quick_autocorrelation_lag1, quick_min_entropy, quick_quality,
     quick_shannon,
 };
+pub use dispatcher::{
+    AnalysisConfig, AnalysisProfile, AnalysisReport, SourceReport, VerdictSummary, analyze,
+};
 pub use platform::{detect_available_sources, platform_info};
 pub use pool::{EntropyPool, HealthReport, SourceHealth, SourceInfoSnapshot};
 pub use session::{
     MachineInfo, SessionConfig, SessionMeta, SessionSourceAnalysis, SessionWriter,
-    detect_machine_info,
+    detect_machine_info, list_sessions, load_session_raw_data,
 };
 pub use source::{EntropySource, Platform, Requirement, SourceCategory, SourceInfo};
 pub use telemetry::{

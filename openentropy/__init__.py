@@ -47,12 +47,26 @@ from openentropy.openentropy import (
     trial_analysis,
     stouffer_combine,
     calibration_check,
+    # Benchmark
+    benchmark_sources,
+    bench_config_defaults,
+    # Record
+    SessionWriter,
+    record,
+    # Sessions
+    list_sessions,
+    load_session_meta,
+    load_session_raw_data,
+    # Chaos
     chaos_analysis,
     hurst_exponent,
     lyapunov_exponent,
     correlation_dimension,
     bientropy,
     epiplexity,
+    # Dispatcher
+    analyze,
+    analysis_config,
 )
 
 __rust_backend__ = True
@@ -103,10 +117,24 @@ __all__ = [
     "trial_analysis",
     "stouffer_combine",
     "calibration_check",
+    # Benchmark
+    "benchmark_sources",
+    "bench_config_defaults",
+    # Record
+    "SessionWriter",
+    "record",
+    # Sessions
+    "list_sessions",
+    "load_session_meta",
+    "load_session_raw_data",
+    # Chaos
     "chaos_analysis",
     "hurst_exponent",
     "lyapunov_exponent",
     "correlation_dimension",
     "bientropy",
     "epiplexity",
+    # Dispatcher
+    "analyze",
+    "analysis_config",
 ]

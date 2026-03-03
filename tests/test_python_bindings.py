@@ -35,6 +35,13 @@ from openentropy import (
     trial_analysis,
     stouffer_combine,
     calibration_check,
+    benchmark_sources,
+    bench_config_defaults,
+    SessionWriter,
+    record,
+    list_sessions,
+    load_session_meta,
+    load_session_raw_data,
 )
 
 
@@ -557,3 +564,221 @@ class TestValueSanity:
     def test_calibration_entropy_range(self):
         result = calibration_check(_random(5000))
         assert 0 <= result["shannon_entropy"] <= 8
+
+
+# ---------------------------------------------------------------------------
+# Benchmark bindings (2 functions)
+# ---------------------------------------------------------------------------
+
+
+class TestBenchmark:
+    def test_bench_config_defaults_returns_dict(self):
+        result = bench_config_defaults()
+        assert isinstance(result, dict)
+        assert "samples_per_round" in result
+        assert "rounds" in result
+        assert "warmup_rounds" in result
+        assert "timeout_sec" in result
+
+    def test_benchmark_sources_returns_report(self):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        result = benchmark_sources(
+            pool,
+            {
+                "rounds": 1,
+                "warmup_rounds": 0,
+                "samples_per_round": 64,
+                "timeout_sec": 1.0,
+            },
+        )
+        assert isinstance(result, dict)
+        assert "sources" in result
+        assert isinstance(result["sources"], list)
+
+
+# ---------------------------------------------------------------------------
+# Record bindings (SessionWriter + record)
+# ---------------------------------------------------------------------------
+
+
+class TestRecord:
+    def test_session_writer_creates_and_finishes(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+        writer = SessionWriter(sources, str(tmp_path), conditioning="raw")
+        writer.write_sample(sources[0], b"\x01\x02\x03", b"\x01\x02\x03")
+        path = writer.finish()
+        assert isinstance(path, str)
+        import os
+
+        assert os.path.isdir(path)
+        assert os.path.exists(os.path.join(path, "session.json"))
+
+    def test_session_writer_double_finish_raises(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+        writer = SessionWriter(sources, str(tmp_path), conditioning="raw")
+        writer.finish()
+        with pytest.raises(Exception, match="already finished"):
+            writer.finish()
+
+    def test_record_returns_dict(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+        result = record(
+            pool,
+            sources,
+            duration_secs=0.5,
+            conditioning="raw",
+            output_dir=str(tmp_path),
+        )
+        assert isinstance(result, dict)
+        assert "id" in result
+
+
+# ---------------------------------------------------------------------------
+# Sessions bindings (3 functions)
+# ---------------------------------------------------------------------------
+
+
+class TestSessions:
+    def test_list_sessions_empty_dir(self, tmp_path):
+        result = list_sessions(str(tmp_path))
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_list_sessions_nonexistent_dir(self, tmp_path):
+        result = list_sessions(str(tmp_path / "nonexistent"))
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    def test_load_session_meta_and_raw_data(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+        # Create a session first
+        writer = SessionWriter(sources, str(tmp_path), conditioning="raw")
+        writer.write_sample(sources[0], b"\xaa\xbb\xcc", b"\xaa\xbb\xcc")
+        session_path = writer.finish()
+        # Now test load functions
+        meta = load_session_meta(session_path)
+        assert isinstance(meta, dict)
+        assert "id" in meta
+        raw = load_session_raw_data(session_path)
+        assert isinstance(raw, dict)
+
+
+class TestDispatcher:
+    def test_analysis_config_default(self):
+        from openentropy import analysis_config
+
+        config = analysis_config()
+        assert isinstance(config, dict)
+        assert config["forensic"] is True
+        assert config["entropy"] is False
+        assert config["chaos"] is False
+        assert config["cross_correlation"] is False
+
+    def test_analysis_config_deep(self):
+        from openentropy import analysis_config
+
+        config = analysis_config("deep")
+        assert config["forensic"] is True
+        assert config["entropy"] is True
+        assert config["chaos"] is True
+        assert config["cross_correlation"] is True
+        assert config["trials"] == {"bits_per_trial": 200}
+
+    def test_analysis_config_security(self):
+        from openentropy import analysis_config
+
+        config = analysis_config("security")
+        assert config["entropy"] is True
+        assert config["chaos"] is False
+        assert config["trials"] is None
+
+    def test_analyze_forensic_only(self):
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze([("test", data)])
+        assert isinstance(report, dict)
+        assert len(report["sources"]) == 1
+        src = report["sources"][0]
+        assert src["label"] == "test"
+        assert "forensic" in src
+        assert "chaos" not in src
+        assert "entropy" not in src
+        assert "trials" not in src
+        assert "autocorrelation" in src["verdicts"]
+
+    def test_analyze_with_profile(self):
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze([("test", data)], profile="deep")
+        src = report["sources"][0]
+        assert "forensic" in src
+        assert "chaos" in src
+        assert "entropy" in src
+        assert "trials" in src
+        assert "hurst" in src["verdicts"]
+
+    def test_analyze_with_config_dict(self):
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze(
+            [("test", data)],
+            config={"forensic": False, "chaos": True},
+        )
+        src = report["sources"][0]
+        assert "forensic" not in src
+        assert "chaos" in src
+
+    def test_analyze_cross_correlation(self):
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze(
+            [("a", data), ("b", data)],
+            config={"cross_correlation": True},
+        )
+        assert len(report["sources"]) == 2
+        assert "cross_correlation" in report
+
+    def test_analyze_cross_correlation_single_source(self):
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze(
+            [("a", data)],
+            config={"cross_correlation": True},
+        )
+        assert "cross_correlation" not in report
+
+    def test_analyze_serializable(self):
+        import json
+        from openentropy import analyze
+
+        data = bytes(range(256)) * 4
+        report = analyze([("test", data)], profile="quick")
+        json_str = json.dumps(report)
+        assert '"forensic"' in json_str
