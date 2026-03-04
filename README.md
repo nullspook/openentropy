@@ -7,7 +7,9 @@
 **Measure and operationalize hardware entropy for research and security.**
 
 [![Crates.io](https://img.shields.io/crates/v/openentropy-core.svg)](https://crates.io/crates/openentropy-core)
+[![PyPI](https://img.shields.io/pypi/v/openentropy.svg)](https://pypi.org/project/openentropy/)
 [![docs.rs](https://docs.rs/openentropy-core/badge.svg)](https://docs.rs/openentropy-core)
+[![Docs](https://img.shields.io/badge/docs-website-0A66C2.svg)](https://amenti-labs.github.io/openentropy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/amenti-labs/openentropy/ci.yml?branch=master&label=CI)](https://github.com/amenti-labs/openentropy/actions)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
@@ -118,25 +120,27 @@ Conditioning is **optional and configurable**. Use `--conditioning` on the CLI o
 | **Von Neumann** | `--conditioning vonneumann` | Debiasing only — removes bias while preserving more of the raw signal structure. |
 | **Raw** | `--conditioning raw` | No processing. Source bytes with zero whitening — preserves the actual hardware noise signal for research. |
 
-Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG post-processing that makes every source look like uniform random bytes, destroying the information researchers need. Raw output preserves per-source noise structure: bias, autocorrelation, spectral features, and cross-source correlations. See [Conditioning](docs/CONDITIONING.md) for details.
+Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG post-processing that makes every source look like uniform random bytes, destroying the information researchers need. Raw output preserves per-source noise structure: bias, autocorrelation, spectral features, and cross-source correlations. See [Conditioning](https://amenti-labs.github.io/openentropy/concepts/conditioning/) for details.
 
 ---
 
 ## Documentation
 
+- Docs site: https://amenti-labs.github.io/openentropy/
+- PyPI package: https://pypi.org/project/openentropy/
+
 | Doc | Description |
 |-----|-------------|
-| [Source Catalog](docs/SOURCES.md) | All 63 entropy sources with physics explanations |
-| [CLI Reference](docs/CLI.md) | Full command reference and examples |
-| [Conditioning](docs/CONDITIONING.md) | Raw vs VonNeumann vs SHA-256 conditioning modes |
-| [Trial Analysis Methodology](docs/TRIALS.md) | PEAR-style 200-bit trials, calibration gate, and references |
-| [Telemetry Model](docs/TELEMETRY.md) | Experimental telemetry_v1 context model and integration points |
-| [API Reference](docs/API.md) | HTTP server endpoints and response formats |
-| [Architecture](docs/ARCHITECTURE.md) | Crate structure and design decisions |
-| [Integrations](docs/INTEGRATIONS.md) | Named pipe device, HTTP server, piping to other programs |
-| [Python SDK](docs/PYTHON_SDK.md) | PyO3 bindings and Python API reference |
+| [Source Catalog](https://amenti-labs.github.io/openentropy/concepts/sources/) | All 63 entropy sources with physics explanations |
+| [CLI Reference](https://amenti-labs.github.io/openentropy/cli/reference/) | Full command reference and examples |
+| [Conditioning](https://amenti-labs.github.io/openentropy/concepts/conditioning/) | Raw vs VonNeumann vs SHA-256 conditioning modes |
+| [Trial Analysis Methodology](https://amenti-labs.github.io/openentropy/concepts/trials/) | PEAR-style 200-bit trials, calibration gate, and references |
+| [Telemetry Model](https://amenti-labs.github.io/openentropy/concepts/telemetry/) | Experimental telemetry_v1 context model and integration points |
+| [Rust API Reference](https://amenti-labs.github.io/openentropy/rust-sdk/api/) | Core Rust API surface |
+| [Architecture](https://amenti-labs.github.io/openentropy/concepts/architecture/) | Crate structure and design decisions |
+| [Python SDK](https://amenti-labs.github.io/openentropy/python-sdk/reference/) | PyO3 bindings and Python API reference |
 | [Examples](examples/) | Rust and Python code examples |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [Troubleshooting](https://amenti-labs.github.io/openentropy/guides/troubleshooting/) | Common issues and fixes |
 | [Security](SECURITY.md) | Threat model and responsible disclosure |
 
 ---
@@ -161,13 +165,13 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 | Quantum | 1 |
 
 For full per-source descriptions, platform availability, and physics notes, see
-[Source Catalog](docs/SOURCES.md).
+[Source Catalog](https://amenti-labs.github.io/openentropy/concepts/sources/).
 
 ---
 
 ## CLI Reference
 
-For the full command reference and examples, see [docs/CLI.md](docs/CLI.md).
+For the full command reference and examples, see [CLI Reference](https://amenti-labs.github.io/openentropy/cli/reference/).
 
 Most-used workflows:
 
@@ -187,7 +191,7 @@ provided. `openentropy sessions` with no path always stays in list mode.
 
 PEAR-style trial methodology references (200-bit trials, terminal Z, weighted
 Stouffer composition, calibration gating) are documented in
-[docs/TRIALS.md](docs/TRIALS.md).
+[Trial Analysis Methodology](https://amenti-labs.github.io/openentropy/concepts/trials/).
 
 ---
 
