@@ -68,6 +68,61 @@ fn epiplexity(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+/// Sample entropy (m=2, r=0.2*std).
+///
+/// Measures signal complexity/irregularity.
+#[pyfunction]
+fn sample_entropy(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::chaos::sample_entropy_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Detrended fluctuation analysis.
+///
+/// Detects long-range correlations in non-stationary data.
+#[pyfunction]
+fn dfa_analysis(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::chaos::dfa_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Recurrence quantification analysis.
+///
+/// Quantifies recurrence structure in the data.
+#[pyfunction]
+fn rqa_analysis(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::chaos::rqa_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Bootstrap confidence intervals for the Hurst exponent.
+///
+/// Resamples data to estimate H uncertainty.
+#[pyfunction]
+fn bootstrap_hurst(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::chaos::bootstrap_hurst_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Rolling Hurst exponent over sliding windows.
+///
+/// Tracks how long-range dependence evolves over the data.
+#[pyfunction]
+fn rolling_hurst(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::chaos::rolling_hurst_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chaos_analysis, m)?)?;
     m.add_function(wrap_pyfunction!(hurst_exponent, m)?)?;
@@ -75,5 +130,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(correlation_dimension, m)?)?;
     m.add_function(wrap_pyfunction!(bientropy, m)?)?;
     m.add_function(wrap_pyfunction!(epiplexity, m)?)?;
+    m.add_function(wrap_pyfunction!(sample_entropy, m)?)?;
+    m.add_function(wrap_pyfunction!(dfa_analysis, m)?)?;
+    m.add_function(wrap_pyfunction!(rqa_analysis, m)?)?;
+    m.add_function(wrap_pyfunction!(bootstrap_hurst, m)?)?;
+    m.add_function(wrap_pyfunction!(rolling_hurst, m)?)?;
     Ok(())
 }

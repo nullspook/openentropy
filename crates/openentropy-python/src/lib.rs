@@ -16,6 +16,9 @@ mod comparison_bindings;
 mod dispatcher_bindings;
 mod record_bindings;
 mod sessions_bindings;
+mod statistics_bindings;
+mod synchrony_bindings;
+mod temporal_bindings;
 mod trials_bindings;
 
 fn parse_conditioning_mode(conditioning: &str) -> PyResult<ConditioningMode> {
@@ -374,5 +377,8 @@ fn openentropy(m: &Bound<'_, PyModule>) -> PyResult<()> {
     record_bindings::register(m)?;
     sessions_bindings::register(m)?;
     trials_bindings::register(m)?;
+    temporal_bindings::register(m)?;
+    statistics_bindings::register(m)?;
+    synchrony_bindings::register(m)?;
     Ok(())
 }
