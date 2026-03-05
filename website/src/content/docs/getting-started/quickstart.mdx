@@ -113,7 +113,7 @@ openentropy monitor --telemetry
 
 # Benchmark all fast sources vs a specific source
 openentropy bench
-openentropy bench all --profile deep --output bench.json
+openentropy bench --all --profile deep --output bench.json
 openentropy bench clock_jitter --rank-by throughput
 
 # Stream bytes (all sources pooled) vs specific source names
@@ -126,7 +126,7 @@ openentropy analyze --profile deep --output analysis.json
 openentropy analyze --entropy --chaos --cross-correlation --output analysis.json
 
 # Record all sources vs selected source, with optional calibration
-openentropy record all --duration 1m --analyze --telemetry
+openentropy record --all --duration 1m --analyze --telemetry
 openentropy record qcicada --calibrate --duration 5m
 
 # Session workflows

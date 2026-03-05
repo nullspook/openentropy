@@ -346,7 +346,7 @@ for (path, meta) in &sessions {
 
 Core statistical analysis battery for evaluating entropy quality. Six tests
 that assess the fundamental properties expected of random data. See
-[Analysis System](/openentropy/concepts/analysis/) for interpretation guides
+[Choose an Analysis Path](/openentropy/concepts/analysis-path/) for interpretation guides
 and verdict thresholds.
 
 ### `full_analysis(source_name: &str, data: &[u8]) -> SourceAnalysis`
@@ -619,7 +619,7 @@ println!("Suitable: {}, Warnings: {:?}", result.is_suitable, result.warnings);
 ## Comparison (`openentropy_core::comparison`)
 
 Differential statistical analysis between two byte streams. See
-[Analysis System](/openentropy/concepts/analysis/) for context on how
+[Choose an Analysis Path](/openentropy/concepts/analysis-path/) for context on how
 comparison fits into the analysis pipeline.
 
 ### `compare(label_a, data_a, label_b, data_b) -> ComparisonResult`

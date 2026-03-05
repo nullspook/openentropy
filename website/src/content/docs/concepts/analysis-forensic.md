@@ -8,6 +8,18 @@ properties expected in random data and runs in every profile.
 
 Implemented in `openentropy_core::analysis`.
 
+> **What it is:** A baseline six-test quality battery for a single source.
+>
+> **Use it for:** First-pass validation before deeper security or research analysis.
+>
+> **Input shape:** One byte stream (`bytes` / `&[u8]`).
+
+## Use this when
+
+- You want a first-pass health check before deeper analysis.
+- You need to quickly detect obvious structure, bias, or drift.
+- You are deciding whether a source is worth deeper research/security testing.
+
 ## Autocorrelation
 
 Measures serial dependence across lags.
@@ -90,5 +102,5 @@ Run metrics far from expectation can indicate stickiness or insufficient mixing.
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Verdict System](/openentropy/concepts/analysis-verdicts/)

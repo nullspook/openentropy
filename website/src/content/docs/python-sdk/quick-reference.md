@@ -66,4 +66,4 @@ raw_map = load_session_raw_data(sessions[0]["path"])
 ## Related
 
 - [Python API Reference](/openentropy/python-sdk/reference/)
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)

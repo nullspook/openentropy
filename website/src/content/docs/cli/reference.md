@@ -153,7 +153,7 @@ Run statistical analysis on entropy sources. The analysis system is tiered:
 forensic baseline plus optional entropy breakdown, chaos core/extended,
 trial analysis, cross-correlation, temporal, statistics, and synchrony,
 controlled by profiles or individual flags. See
-[Analysis System](/openentropy/concepts/analysis/) for detailed explanations
+[Choose an Analysis Path](/openentropy/concepts/analysis-path/) for detailed explanations
 of each category, interpretation guides, and verdict thresholds.
 
 ```bash

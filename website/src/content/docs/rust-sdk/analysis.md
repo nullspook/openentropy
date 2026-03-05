@@ -48,5 +48,5 @@ let delta = compare("a", &data_a, "b", &data_b);
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Rust API Reference](/openentropy/rust-sdk/api/)

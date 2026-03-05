@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "build": "rm -rf .astro dist && astro build",
+    "build": "rm -rf .astro dist node_modules/.vite && astro build",
     "preview": "astro preview"
   },
   "dependencies": {

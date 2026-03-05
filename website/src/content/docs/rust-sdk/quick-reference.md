@@ -70,4 +70,4 @@ let raw_map = load_session_raw_data(&sessions[0].0)?;
 ## Related
 
 - [Rust API Reference](/openentropy/rust-sdk/api/)
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)

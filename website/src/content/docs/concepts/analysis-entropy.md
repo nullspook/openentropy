@@ -8,6 +8,18 @@ NIST SP 800-90B. It runs multiple estimators and reports conservative values.
 
 Implemented in `openentropy_core::conditioning`.
 
+> **What it is:** A conservative, multi-estimator min-entropy assessment.
+>
+> **Use it for:** Security decisions where entropy density and worst-case estimates matter.
+>
+> **Input shape:** One byte stream (`bytes` / `&[u8]`).
+
+## Use this when
+
+- You need entropy-density estimates for security decisions.
+- You want more than a single Shannon value (MCV/collision/Markov/compression/t-tuple).
+- You are comparing sources by conservative min-entropy grade.
+
 ## Estimators
 
 | Estimator | Method | Notes |
@@ -32,7 +44,7 @@ diagnostic floor is also available for additional caution.
 | D | `>= 1.0` | High predictability risk |
 | F | `< 1.0` | Insufficient entropy |
 
-## When To Use
+## How to run it
 
 - `--profile security` for security-focused validation
 - `--profile deep` for broad research characterization
@@ -40,6 +52,6 @@ diagnostic floor is also available for additional caution.
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Forensic Analysis](/openentropy/concepts/analysis-forensic/)
 - [Verdict System](/openentropy/concepts/analysis-verdicts/)

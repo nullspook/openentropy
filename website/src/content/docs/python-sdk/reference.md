@@ -279,7 +279,7 @@ Analyze raw byte data for entropy quality, bias, and structure. All functions
 accept `bytes` and return `dict` (except `pearson_correlation` which returns `float`).
 
 For detailed explanations of each analysis category, interpretation guides,
-and verdict thresholds, see [Analysis System](/openentropy/concepts/analysis/).
+and verdict thresholds, see [Choose an Analysis Path](/openentropy/concepts/analysis-path/).
 
 ```python
 import os
@@ -446,7 +446,7 @@ from openentropy import (
 ## Unified Analysis Dispatcher
 
 The `analyze()` function runs multiple analysis modules in one call with
-configurable profiles. See [Analysis System](/openentropy/concepts/analysis/)
+configurable profiles. See [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 for profile details, analysis categories, and the verdict system.
 
 ```python

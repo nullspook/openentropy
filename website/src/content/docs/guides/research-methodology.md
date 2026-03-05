@@ -37,6 +37,6 @@ openentropy record qcicada --calibrate --duration 5m
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Trial Analysis](/openentropy/concepts/trials/)
 - [Entropy Sources](/openentropy/concepts/sources/)
