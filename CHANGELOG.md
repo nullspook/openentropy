@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.0 — 2026-03-05
+
+### Added
+
+- Expanded core analysis coverage with new `statistics`, `temporal`, and `synchrony` modules.
+- Added extended chaos and entropy-complexity methods (SampEn, ApEn, DFA, RQA, rolling/bootstrap Hurst, permutation entropy, Anderson-Darling).
+- Added Python binding parity for all newly introduced analysis capabilities.
+- Added concept docs for temporal/statistics/synchrony analysis and expanded SDK references.
+
+### Changed
+
+- CLI `analyze` now supports tiered analysis flags: `--chaos` (core), `--chaos-extended`, `--temporal`, `--statistics`, and `--synchrony`.
+- `deep` profile now enables core + extended research tiers (except synchrony, which requires explicit 2+ source selection).
+- README branding now uses the no-text logo and includes explicit attribution for external analysis-method inspiration.
+
 ## 0.11.0 — 2026-03-03
 
 ### Added

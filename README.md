@@ -209,7 +209,7 @@ Stouffer composition, calibration gating) are documented in
 
 ```toml
 [dependencies]
-openentropy-core = "0.10"
+openentropy-core = "0.12"
 ```
 
 ```rust
