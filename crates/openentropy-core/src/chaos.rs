@@ -20,6 +20,48 @@ pub struct HurstResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct BootstrapHurstResult {
+    pub observed_hurst: f64,
+    pub mean_surrogate_hurst: f64,
+    pub std_surrogate_hurst: f64,
+    pub p_value: f64,
+    pub ci_lower: f64,
+    pub ci_upper: f64,
+    pub n_surrogates: usize,
+    pub is_significant: bool,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollingHurstWindow {
+    pub offset: usize,
+    pub hurst: f64,
+    pub r_squared: f64,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollingHurstResult {
+    pub windows: Vec<RollingHurstWindow>,
+    pub mean_hurst: f64,
+    pub std_hurst: f64,
+    pub min_hurst: f64,
+    pub max_hurst: f64,
+    pub window_size: usize,
+    pub step: usize,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DfaResult {
+    pub alpha: f64,
+    pub r_squared: f64,
+    pub fluctuations: Vec<(usize, f64)>,
+    pub order: usize,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct BiEntropyResult {
     pub bien: f64,
     pub tbien: f64,
@@ -34,6 +76,17 @@ pub struct EpiplexityResult {
     pub structural_info: f64,         // 1.0 - compression_ratio (epiplexity)
     pub remaining_entropy: f64,       // compression_ratio (unpredictability)
     pub delta_compression_ratio: f64, // compress(diff(data)) / diff_size
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SampleEntropyResult {
+    pub sample_entropy: f64,
+    pub m: usize,
+    pub r: f64,
+    pub count_a: u64,
+    pub count_b: u64,
+    pub actual_samples: usize,
     pub is_valid: bool,
 }
 
@@ -54,6 +107,177 @@ fn sample_std_dev(data: &[f64]) -> f64 {
         / (n as f64 - 1.0);
 
     variance.sqrt()
+}
+
+fn percentile(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return f64::NAN;
+    }
+
+    let idx = (p / 100.0 * (sorted.len() - 1) as f64).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+fn log_spaced_windows(min: usize, max: usize, count: usize) -> Vec<usize> {
+    if max <= min || count < 2 {
+        return vec![min, max];
+    }
+
+    let log_min = (min as f64).ln();
+    let log_max = (max as f64).ln();
+    (0..count)
+        .map(|i| {
+            let t = i as f64 / (count - 1) as f64;
+            (log_min + t * (log_max - log_min)).exp().round() as usize
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn subsample_to_limit(data: &[u8], max_samples: usize) -> Vec<f64> {
+    let data_f64: Vec<f64> = data.iter().map(|&x| x as f64).collect();
+    if data_f64.len() > max_samples {
+        let step = (data_f64.len() / max_samples).max(1);
+        data_f64
+            .iter()
+            .step_by(step)
+            .take(max_samples)
+            .copied()
+            .collect()
+    } else {
+        data_f64
+    }
+}
+
+pub fn sample_entropy(data: &[u8], m: usize, r: f64) -> SampleEntropyResult {
+    const MAX_SAMPLES: usize = 5000;
+
+    if m == 0 || data.len() <= m + 1 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m,
+            r,
+            count_a: 0,
+            count_b: 0,
+            actual_samples: data.len().min(MAX_SAMPLES),
+            is_valid: false,
+        };
+    }
+
+    let sampled = subsample_to_limit(data, MAX_SAMPLES);
+    if sampled.len() <= m + 1 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m,
+            r,
+            count_a: 0,
+            count_b: 0,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    let std_dev = sample_std_dev(&sampled);
+    if std_dev == 0.0 || !r.is_finite() || r <= 0.0 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m,
+            r,
+            count_a: 0,
+            count_b: 0,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    let n = sampled.len();
+    let n_m = n - m;
+    let n_m1 = n - m - 1;
+    let mut count_b: u64 = 0;
+    let mut count_a: u64 = 0;
+
+    for i in 0..n_m {
+        for j in 0..n_m {
+            if i == j {
+                continue;
+            }
+
+            let mut matches_m = true;
+            for k in 0..m {
+                if (sampled[i + k] - sampled[j + k]).abs() >= r {
+                    matches_m = false;
+                    break;
+                }
+            }
+
+            if !matches_m {
+                continue;
+            }
+
+            count_b += 1;
+
+            if i < n_m1 && j < n_m1 && (sampled[i + m] - sampled[j + m]).abs() < r {
+                count_a += 1;
+            }
+        }
+    }
+
+    if count_b == 0 || count_a == 0 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m,
+            r,
+            count_a,
+            count_b,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    let sampen = -((count_a as f64) / (count_b as f64)).ln();
+    SampleEntropyResult {
+        sample_entropy: sampen,
+        m,
+        r,
+        count_a,
+        count_b,
+        actual_samples: sampled.len(),
+        is_valid: sampen.is_finite(),
+    }
+}
+
+pub fn sample_entropy_default(data: &[u8]) -> SampleEntropyResult {
+    const DEFAULT_M: usize = 2;
+    const MAX_SAMPLES: usize = 5000;
+
+    if data.len() <= DEFAULT_M + 1 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m: DEFAULT_M,
+            r: f64::NAN,
+            count_a: 0,
+            count_b: 0,
+            actual_samples: data.len().min(MAX_SAMPLES),
+            is_valid: false,
+        };
+    }
+
+    let sampled = subsample_to_limit(data, MAX_SAMPLES);
+    let std_dev = sample_std_dev(&sampled);
+    if std_dev == 0.0 {
+        return SampleEntropyResult {
+            sample_entropy: f64::NAN,
+            m: DEFAULT_M,
+            r: 0.0,
+            count_a: 0,
+            count_b: 0,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    sample_entropy(data, DEFAULT_M, 0.2 * std_dev)
 }
 
 #[allow(dead_code)]
@@ -168,6 +392,267 @@ pub fn hurst_exponent(data: &[u8]) -> HurstResult {
         r_squared,
         rs_values,
     }
+}
+
+pub fn rolling_hurst(data: &[u8], window_size: usize, step: usize) -> RollingHurstResult {
+    let invalid = || RollingHurstResult {
+        windows: vec![],
+        mean_hurst: f64::NAN,
+        std_hurst: f64::NAN,
+        min_hurst: f64::NAN,
+        max_hurst: f64::NAN,
+        window_size,
+        step,
+        is_valid: false,
+    };
+
+    if window_size == 0 || step == 0 || data.len() < window_size {
+        return invalid();
+    }
+
+    let mut windows = Vec::new();
+    let mut offset = 0usize;
+    while offset + window_size <= data.len() {
+        let result = hurst_exponent(&data[offset..offset + window_size]);
+        windows.push(RollingHurstWindow {
+            offset,
+            hurst: result.hurst_exponent,
+            r_squared: result.r_squared,
+            is_valid: result.is_valid,
+        });
+        offset += step;
+    }
+
+    let valid_hursts: Vec<f64> = windows
+        .iter()
+        .filter_map(|w| {
+            if w.is_valid && w.hurst.is_finite() {
+                Some(w.hurst)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if valid_hursts.is_empty() {
+        return RollingHurstResult {
+            windows,
+            mean_hurst: f64::NAN,
+            std_hurst: f64::NAN,
+            min_hurst: f64::NAN,
+            max_hurst: f64::NAN,
+            window_size,
+            step,
+            is_valid: false,
+        };
+    }
+
+    let mean_hurst = valid_hursts.iter().sum::<f64>() / valid_hursts.len() as f64;
+    let std_hurst = sample_std_dev(&valid_hursts);
+    let min_hurst = valid_hursts.iter().copied().fold(f64::INFINITY, f64::min);
+    let max_hurst = valid_hursts
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
+
+    RollingHurstResult {
+        windows,
+        mean_hurst,
+        std_hurst,
+        min_hurst,
+        max_hurst,
+        window_size,
+        step,
+        is_valid: true,
+    }
+}
+
+pub fn rolling_hurst_default(data: &[u8]) -> RollingHurstResult {
+    rolling_hurst(data, 512, 64)
+}
+
+pub fn bootstrap_hurst(data: &[u8], n_bootstrap: usize) -> BootstrapHurstResult {
+    let invalid = || BootstrapHurstResult {
+        observed_hurst: f64::NAN,
+        mean_surrogate_hurst: f64::NAN,
+        std_surrogate_hurst: f64::NAN,
+        p_value: f64::NAN,
+        ci_lower: f64::NAN,
+        ci_upper: f64::NAN,
+        n_surrogates: 0,
+        is_significant: false,
+        is_valid: false,
+    };
+
+    let observed = hurst_exponent(data);
+    if !observed.is_valid || n_bootstrap == 0 {
+        return invalid();
+    }
+
+    let mut state = data
+        .iter()
+        .fold(0u64, |acc, &b| acc.wrapping_mul(31).wrapping_add(b as u64));
+
+    let mut surrogate_hursts = Vec::with_capacity(n_bootstrap);
+    for _ in 0..n_bootstrap {
+        let mut surrogate = data.to_vec();
+        for i in (1..surrogate.len()).rev() {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let j = (state as usize) % (i + 1);
+            surrogate.swap(i, j);
+        }
+
+        let result = hurst_exponent(&surrogate);
+        if result.is_valid {
+            surrogate_hursts.push(result.hurst_exponent);
+        }
+    }
+
+    if surrogate_hursts.is_empty() {
+        return invalid();
+    }
+
+    let mean_surrogate_hurst = surrogate_hursts.iter().sum::<f64>() / surrogate_hursts.len() as f64;
+    let std_surrogate_hurst = sample_std_dev(&surrogate_hursts);
+
+    let mut sorted = surrogate_hursts.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let ci_lower = percentile(&sorted, 2.5);
+    let ci_upper = percentile(&sorted, 97.5);
+
+    let ge_count = surrogate_hursts
+        .iter()
+        .filter(|&&h| h >= observed.hurst_exponent)
+        .count();
+    let p_value = ge_count as f64 / surrogate_hursts.len() as f64;
+
+    BootstrapHurstResult {
+        observed_hurst: observed.hurst_exponent,
+        mean_surrogate_hurst,
+        std_surrogate_hurst,
+        p_value,
+        ci_lower,
+        ci_upper,
+        n_surrogates: surrogate_hursts.len(),
+        is_significant: observed.hurst_exponent < ci_lower || observed.hurst_exponent > ci_upper,
+        is_valid: true,
+    }
+}
+
+pub fn bootstrap_hurst_default(data: &[u8]) -> BootstrapHurstResult {
+    bootstrap_hurst(data, 200)
+}
+
+pub fn dfa(data: &[u8], order: usize) -> DfaResult {
+    if data.len() < 40 || order != 1 {
+        return DfaResult {
+            alpha: f64::NAN,
+            r_squared: 0.0,
+            fluctuations: vec![],
+            order,
+            is_valid: false,
+        };
+    }
+
+    let data_f64: Vec<f64> = data.iter().map(|&x| x as f64).collect();
+    let mean = data_f64.iter().sum::<f64>() / data_f64.len() as f64;
+
+    let mut integrated = Vec::with_capacity(data_f64.len());
+    let mut cumulative = 0.0;
+    for &v in &data_f64 {
+        cumulative += v - mean;
+        integrated.push(cumulative);
+    }
+
+    let min_window = 10usize;
+    let max_window = integrated.len() / 4;
+    if max_window <= min_window {
+        return DfaResult {
+            alpha: f64::NAN,
+            r_squared: 0.0,
+            fluctuations: vec![],
+            order,
+            is_valid: false,
+        };
+    }
+
+    let window_sizes = log_spaced_windows(min_window, max_window, 20);
+    let mut fluctuations = Vec::new();
+    let mut log_n = Vec::new();
+    let mut log_f = Vec::new();
+
+    for &window_size in &window_sizes {
+        let n_windows = integrated.len() / window_size;
+        if n_windows < 2 {
+            continue;
+        }
+
+        let t: Vec<f64> = (0..window_size).map(|i| i as f64).collect();
+        let mut rms_values = Vec::with_capacity(n_windows);
+
+        for w in 0..n_windows {
+            let start = w * window_size;
+            let end = start + window_size;
+            let segment = &integrated[start..end];
+
+            let (slope, intercept, _r2) = math::linear_regression(&t, segment);
+            if !slope.is_finite() || !intercept.is_finite() {
+                continue;
+            }
+
+            let mse = segment
+                .iter()
+                .enumerate()
+                .map(|(i, &y)| {
+                    let trend = slope * i as f64 + intercept;
+                    let d = y - trend;
+                    d * d
+                })
+                .sum::<f64>()
+                / window_size as f64;
+
+            let rms = mse.sqrt();
+            if rms.is_finite() {
+                rms_values.push(rms);
+            }
+        }
+
+        if !rms_values.is_empty() {
+            let f_n = rms_values.iter().sum::<f64>() / rms_values.len() as f64;
+            if f_n > 1e-12 {
+                fluctuations.push((window_size, f_n));
+                log_n.push((window_size as f64).ln());
+                log_f.push(f_n.ln());
+            }
+        }
+    }
+
+    if fluctuations.len() < 4 {
+        return DfaResult {
+            alpha: f64::NAN,
+            r_squared: 0.0,
+            fluctuations,
+            order,
+            is_valid: false,
+        };
+    }
+
+    let (alpha, _intercept, r_squared) = math::linear_regression(&log_n, &log_f);
+    let is_valid = alpha.is_finite();
+
+    DfaResult {
+        alpha,
+        r_squared,
+        fluctuations,
+        order,
+        is_valid,
+    }
+}
+
+pub fn dfa_default(data: &[u8]) -> DfaResult {
+    dfa(data, 1)
 }
 
 fn bytes_to_bits(data: &[u8]) -> Vec<bool> {
@@ -602,6 +1087,158 @@ pub fn correlation_dimension(data: &[u8]) -> CorrelationDimResult {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct RqaResult {
+    pub recurrence_rate: f64,
+    pub determinism: f64,
+    pub laminarity: f64,
+    pub avg_diagonal_length: f64,
+    pub max_diagonal_length: usize,
+    pub embedding_dim: usize,
+    pub delay: usize,
+    pub threshold: f64,
+    pub num_points_used: usize,
+    pub is_valid: bool,
+}
+
+pub fn rqa(data: &[u8], embedding_dim: usize, delay: usize, threshold: f64) -> RqaResult {
+    const SUBSAMPLE_MAX: usize = 1000;
+
+    let invalid = || RqaResult {
+        recurrence_rate: 0.0,
+        determinism: 0.0,
+        laminarity: 0.0,
+        avg_diagonal_length: 0.0,
+        max_diagonal_length: 0,
+        embedding_dim,
+        delay,
+        threshold,
+        num_points_used: 0,
+        is_valid: false,
+    };
+
+    if data.is_empty()
+        || embedding_dim == 0
+        || delay == 0
+        || !threshold.is_finite()
+        || threshold <= 0.0
+    {
+        return invalid();
+    }
+
+    let data_f64: Vec<f64> = data.iter().map(|&b| b as f64).collect();
+    let embedded = time_delay_embedding(&data_f64, embedding_dim, delay);
+    if embedded.len() < 2 {
+        return invalid();
+    }
+
+    let vectors: Vec<Vec<f64>> = if embedded.len() > SUBSAMPLE_MAX {
+        let step = (embedded.len() / SUBSAMPLE_MAX).max(1);
+        embedded
+            .iter()
+            .step_by(step)
+            .take(SUBSAMPLE_MAX)
+            .cloned()
+            .collect()
+    } else {
+        embedded
+    };
+
+    let n = vectors.len();
+    if n < 2 {
+        return invalid();
+    }
+
+    let mut total_recurrence_points = 0usize;
+    let mut diag_points_in_lines = 0usize;
+    let mut diag_line_count = 0usize;
+    let mut max_diagonal_length = 0usize;
+    let mut vertical_points_in_lines = 0usize;
+
+    let mut prev_diag_lengths = vec![0usize; n + 1];
+    let mut curr_diag_lengths = vec![0usize; n + 1];
+    let mut vertical_lengths = vec![0usize; n];
+
+    for i in 0..n {
+        curr_diag_lengths[0] = 0;
+
+        for j in 0..n {
+            let recurrence =
+                i != j && math::euclidean_distance(&vectors[i], &vectors[j]) < threshold;
+
+            if recurrence {
+                total_recurrence_points += 1;
+
+                let diag_len = prev_diag_lengths[j] + 1;
+                curr_diag_lengths[j + 1] = diag_len;
+                if diag_len == 2 {
+                    diag_points_in_lines += 2;
+                    diag_line_count += 1;
+                    max_diagonal_length = max_diagonal_length.max(2);
+                } else if diag_len > 2 {
+                    diag_points_in_lines += 1;
+                    max_diagonal_length = max_diagonal_length.max(diag_len);
+                }
+
+                let vert_len = vertical_lengths[j] + 1;
+                vertical_lengths[j] = vert_len;
+                if vert_len == 2 {
+                    vertical_points_in_lines += 2;
+                } else if vert_len > 2 {
+                    vertical_points_in_lines += 1;
+                }
+            } else {
+                curr_diag_lengths[j + 1] = 0;
+                vertical_lengths[j] = 0;
+            }
+        }
+
+        std::mem::swap(&mut prev_diag_lengths, &mut curr_diag_lengths);
+    }
+
+    let total_pairs = n * (n - 1);
+    let recurrence_rate = if total_pairs > 0 {
+        total_recurrence_points as f64 / total_pairs as f64
+    } else {
+        0.0
+    };
+
+    let determinism = if total_recurrence_points > 0 {
+        diag_points_in_lines as f64 / total_recurrence_points as f64
+    } else {
+        0.0
+    };
+
+    let laminarity = if total_recurrence_points > 0 {
+        vertical_points_in_lines as f64 / total_recurrence_points as f64
+    } else {
+        0.0
+    };
+
+    let avg_diagonal_length = if diag_line_count > 0 {
+        diag_points_in_lines as f64 / diag_line_count as f64
+    } else {
+        0.0
+    };
+
+    RqaResult {
+        recurrence_rate,
+        determinism,
+        laminarity,
+        avg_diagonal_length,
+        max_diagonal_length,
+        embedding_dim,
+        delay,
+        threshold,
+        num_points_used: n,
+        is_valid: true,
+    }
+}
+
+pub fn rqa_default(data: &[u8]) -> RqaResult {
+    rqa(data, 3, 1, 10.0)
+}
+
 /// Aggregated chaos theory analysis results for a data stream.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChaosAnalysis {
@@ -610,6 +1247,11 @@ pub struct ChaosAnalysis {
     pub correlation_dimension: CorrelationDimResult,
     pub bientropy: BiEntropyResult,
     pub epiplexity: EpiplexityResult,
+    pub sample_entropy: SampleEntropyResult,
+    pub dfa: DfaResult,
+    pub rqa: RqaResult,
+    pub bootstrap_hurst: BootstrapHurstResult,
+    pub rolling_hurst: RollingHurstResult,
 }
 
 /// Run all 5 chaos theory analysis methods on the given data.
@@ -623,6 +1265,11 @@ pub fn chaos_analysis(data: &[u8]) -> ChaosAnalysis {
         correlation_dimension: correlation_dimension(data),
         bientropy: bientropy(data),
         epiplexity: epiplexity(data),
+        sample_entropy: sample_entropy_default(data),
+        dfa: dfa_default(data),
+        rqa: rqa_default(data),
+        bootstrap_hurst: bootstrap_hurst_default(data),
+        rolling_hurst: rolling_hurst_default(data),
     }
 }
 
@@ -655,6 +1302,128 @@ mod tests {
     fn test_hurst_constant() {
         let data = vec![42u8; 1000];
         let result = hurst_exponent(&data);
+
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_rolling_hurst_random_seeded() {
+        let data = random_data_seeded(10000, 0xdeadbeef);
+        let result = rolling_hurst(&data, 1000, 100);
+
+        assert!(result.is_valid);
+        assert_eq!(result.windows.len(), 91);
+        for window in &result.windows {
+            assert!(window.is_valid);
+            assert!(window.hurst >= 0.3 && window.hurst <= 0.7);
+        }
+    }
+
+    #[test]
+    fn test_rolling_hurst_data_too_short() {
+        let data = random_data_seeded(500, 0x12345678);
+        let result = rolling_hurst(&data, 1000, 100);
+
+        assert!(!result.is_valid);
+        assert!(result.windows.is_empty());
+    }
+
+    #[test]
+    fn test_rolling_hurst_empty_invalid() {
+        let data: &[u8] = &[];
+        let result = rolling_hurst_default(data);
+
+        assert!(!result.is_valid);
+        assert!(result.windows.is_empty());
+    }
+
+    #[test]
+    fn test_rolling_hurst_mean_consistency() {
+        let data = random_data_seeded(10000, 0xcafebabe);
+        let result = rolling_hurst_default(&data);
+        assert!(result.is_valid);
+
+        let valid_hursts: Vec<f64> = result
+            .windows
+            .iter()
+            .filter(|w| w.is_valid)
+            .map(|w| w.hurst)
+            .collect();
+
+        let expected_mean = valid_hursts.iter().sum::<f64>() / valid_hursts.len() as f64;
+        assert!((result.mean_hurst - expected_mean).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_bootstrap_hurst_random_deterministic() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result_a = bootstrap_hurst(&data, 200);
+        let result_b = bootstrap_hurst(&data, 200);
+
+        assert!(result_a.is_valid);
+        assert_eq!(result_a.n_surrogates, 200);
+        assert_eq!(result_a.p_value, result_b.p_value);
+        assert_eq!(result_a.mean_surrogate_hurst, result_b.mean_surrogate_hurst);
+        assert_eq!(result_a.ci_lower, result_b.ci_lower);
+        assert_eq!(result_a.ci_upper, result_b.ci_upper);
+    }
+
+    #[test]
+    fn test_bootstrap_hurst_correlated_significant() {
+        let data: Vec<u8> = (0..5000).map(|i| (i / 20) as u8).collect();
+        let result = bootstrap_hurst(&data, 200);
+
+        assert!(result.is_valid);
+        assert!(result.is_significant);
+    }
+
+    #[test]
+    fn test_bootstrap_hurst_empty_invalid() {
+        let result = bootstrap_hurst_default(&[]);
+
+        assert!(!result.is_valid);
+        assert_eq!(result.n_surrogates, 0);
+    }
+
+    #[test]
+    fn test_bootstrap_hurst_too_short_invalid() {
+        let data = random_data_seeded(50, 0x12345678);
+        let result = bootstrap_hurst_default(&data);
+
+        assert!(!result.is_valid);
+        assert_eq!(result.n_surrogates, 0);
+    }
+
+    #[test]
+    fn test_dfa_random() {
+        let data = random_data_seeded(10000, 0xdeadbeef);
+        let result = dfa(&data, 1);
+
+        assert!(result.is_valid);
+        assert!(result.alpha >= 0.3 && result.alpha <= 0.7);
+    }
+
+    #[test]
+    fn test_dfa_constant() {
+        let data = vec![42u8; 10000];
+        let result = dfa_default(&data);
+
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_dfa_empty() {
+        let data: &[u8] = &[];
+        let result = dfa_default(data);
+
+        assert!(!result.is_valid);
+        assert!(result.fluctuations.is_empty());
+    }
+
+    #[test]
+    fn test_dfa_too_short() {
+        let data = random_data_seeded(20, 0x12345678);
+        let result = dfa_default(&data);
 
         assert!(!result.is_valid);
     }
@@ -773,6 +1542,100 @@ mod tests {
     }
 
     #[test]
+    fn test_rqa_random_low_recurrence() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = rqa_default(&data);
+
+        assert!(result.is_valid);
+        assert!(
+            result.recurrence_rate < 0.1,
+            "random data should have low RR, got {}",
+            result.recurrence_rate
+        );
+    }
+
+    #[test]
+    fn test_rqa_periodic_high_recurrence_and_determinism() {
+        let data: Vec<u8> = (0..5000).map(|i| (i % 10) as u8).collect();
+        let result = rqa_default(&data);
+
+        assert!(result.is_valid);
+        assert!(
+            result.recurrence_rate > 0.2,
+            "periodic data should have high RR, got {}",
+            result.recurrence_rate
+        );
+        assert!(
+            result.determinism > 0.8,
+            "periodic data should have high DET, got {}",
+            result.determinism
+        );
+    }
+
+    #[test]
+    fn test_rqa_constant_near_full_recurrence() {
+        let data = vec![42u8; 5000];
+        let result = rqa_default(&data);
+
+        assert!(result.is_valid);
+        assert!(
+            result.recurrence_rate > 0.99,
+            "constant data should have RR near 1.0, got {}",
+            result.recurrence_rate
+        );
+    }
+
+    #[test]
+    fn test_rqa_empty_invalid() {
+        let data: &[u8] = &[];
+        let result = rqa_default(data);
+
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_sample_entropy_random() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = sample_entropy_default(&data);
+        assert!(result.is_valid);
+        assert!(result.sample_entropy > 0.0);
+    }
+
+    #[test]
+    fn test_sample_entropy_periodic_lower_than_random() {
+        let random = random_data_seeded(5000, 0xdeadbeef);
+        let periodic: Vec<u8> = (0..5000).map(|i| (i % 4) as u8).collect();
+
+        let random_result = sample_entropy_default(&random);
+        let periodic_result = sample_entropy_default(&periodic);
+
+        assert!(random_result.is_valid);
+        assert!(periodic_result.is_valid);
+        assert!(periodic_result.sample_entropy < random_result.sample_entropy);
+    }
+
+    #[test]
+    fn test_sample_entropy_constant_invalid() {
+        let data = vec![42u8; 5000];
+        let result = sample_entropy_default(&data);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_sample_entropy_empty_invalid() {
+        let data: &[u8] = &[];
+        let result = sample_entropy_default(data);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_sample_entropy_single_byte_invalid() {
+        let data: &[u8] = &[42];
+        let result = sample_entropy_default(data);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
     fn test_empty_input() {
         let data: &[u8] = &[];
         let h = hurst_exponent(data);
@@ -809,6 +1672,20 @@ mod tests {
         assert!(result.correlation_dimension.is_valid);
         assert!(result.bientropy.is_valid);
         assert!(result.epiplexity.is_valid);
+        assert!(result.sample_entropy.is_valid);
+        assert!(result.dfa.is_valid);
+        assert!(result.rqa.is_valid);
+        assert!(result.bootstrap_hurst.is_valid);
+        assert!(result.rolling_hurst.is_valid);
+    }
+
+    #[test]
+    fn test_chaos_analysis_serializes() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = chaos_analysis(&data);
+        let json = serde_json::to_string(&result).expect("serialization failed");
+        assert!(json.contains("sample_entropy"));
+        assert!(json.contains("dfa"));
     }
 
     #[test]

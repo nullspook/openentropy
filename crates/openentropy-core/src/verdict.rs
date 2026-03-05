@@ -206,6 +206,130 @@ pub fn verdict_compression(c: f64) -> Verdict {
 }
 
 // ---------------------------------------------------------------------------
+// Advanced analysis verdicts
+// ---------------------------------------------------------------------------
+
+/// Sample entropy: higher values indicate more randomness.
+/// Threshold: SampEn > 1.0 is typical for random data (Richman & Moorman 2000).
+pub fn verdict_sampen(v: f64) -> Verdict {
+    if !v.is_finite() {
+        return Verdict::Na;
+    }
+    if v > 1.0 {
+        Verdict::Pass
+    } else if v >= 0.5 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// DFA scaling exponent alpha: 0.5 indicates uncorrelated random walk.
+/// Threshold: 0.4 < α < 0.6 is the random zone (Peng et al. 1994).
+pub fn verdict_dfa(alpha: f64) -> Verdict {
+    if !alpha.is_finite() {
+        return Verdict::Na;
+    }
+    if alpha > 0.4 && alpha < 0.6 {
+        Verdict::Pass
+    } else if (0.3..=0.7).contains(&alpha) {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// RQA determinism: low DET indicates non-deterministic (random) data.
+/// Threshold: DET < 0.1 expected for random data (Marwan et al. 2007).
+pub fn verdict_rqa_det(det: f64) -> Verdict {
+    if !det.is_finite() {
+        return Verdict::Na;
+    }
+    if det < 0.1 {
+        Verdict::Pass
+    } else if det <= 0.3 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// Approximate entropy: higher values indicate more randomness.
+/// Threshold: ApEn > 1.0 typical for random data (Pincus 1991).
+pub fn verdict_apen(v: f64) -> Verdict {
+    if !v.is_finite() {
+        return Verdict::Na;
+    }
+    if v > 1.0 {
+        Verdict::Pass
+    } else if v >= 0.5 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// Permutation entropy: normalized to [0,1]; 1.0 = maximum disorder.
+/// Threshold: PermEn > 0.95 expected for random data (Bandt & Pompe 2002).
+pub fn verdict_permen(v: f64) -> Verdict {
+    if !v.is_finite() {
+        return Verdict::Na;
+    }
+    if v > 0.95 {
+        Verdict::Pass
+    } else if v >= 0.8 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// Anderson-Darling p-value for uniformity: p > 0.05 fails to reject H0.
+/// Threshold: p > 0.05 = uniform (PASS), 0.01-0.05 = borderline (WARN), < 0.01 = non-uniform (FAIL).
+pub fn verdict_anderson_darling(p: f64) -> Verdict {
+    if !p.is_finite() {
+        return Verdict::Na;
+    }
+    if p > 0.05 {
+        Verdict::Pass
+    } else if p >= 0.01 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// Ljung-Box p-value for autocorrelation: p > 0.05 fails to reject H0 (no autocorrelation).
+/// Threshold: p > 0.05 = no autocorrelation (PASS), 0.01-0.05 = borderline (WARN), < 0.01 = autocorrelated (FAIL).
+pub fn verdict_ljung_box(p: f64) -> Verdict {
+    if !p.is_finite() {
+        return Verdict::Na;
+    }
+    if p > 0.05 {
+        Verdict::Pass
+    } else if p >= 0.01 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+/// Cramér-von Mises p-value for uniformity: p > 0.05 fails to reject H0.
+/// Threshold: p > 0.05 = uniform (PASS), 0.01-0.05 = borderline (WARN), < 0.01 = non-uniform (FAIL).
+pub fn verdict_cramer_von_mises(p: f64) -> Verdict {
+    if !p.is_finite() {
+        return Verdict::Na;
+    }
+    if p > 0.05 {
+        Verdict::Pass
+    } else if p >= 0.01 {
+        Verdict::Warn
+    } else {
+        Verdict::Fail
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Display helpers
 // ---------------------------------------------------------------------------
 

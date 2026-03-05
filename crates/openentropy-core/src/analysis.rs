@@ -5,6 +5,7 @@
 //! statistics, stationarity, runs analysis, and entropy scaling.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::f64::consts::PI;
 
 use crate::math;
@@ -84,6 +85,27 @@ pub struct DistributionResult {
     pub ks_p_value: f64,
 }
 
+/// Anderson-Darling goodness-of-fit test against byte-uniform distribution.
+#[derive(Debug, Clone, Serialize)]
+pub struct AndersonDarlingResult {
+    pub statistic: f64,
+    pub p_value: f64,
+    pub is_uniform: bool,
+    pub critical_values: Vec<(f64, f64)>,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ApproxEntropyResult {
+    pub apen: f64,
+    pub m: usize,
+    pub r: f64,
+    pub phi_m: f64,
+    pub phi_m_plus_1: f64,
+    pub actual_samples: usize,
+    pub is_valid: bool,
+}
+
 /// Stationarity test result.
 #[derive(Debug, Clone, Serialize)]
 pub struct StationarityResult {
@@ -110,6 +132,17 @@ pub struct RunsResult {
     pub total_runs: usize,
     /// Expected total runs for random data.
     pub expected_runs: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PermutationEntropyResult {
+    pub permutation_entropy: f64,
+    pub normalized_entropy: f64,
+    pub order: usize,
+    pub delay: usize,
+    pub n_patterns: usize,
+    pub pattern_counts: Vec<(Vec<usize>, usize)>,
+    pub is_valid: bool,
 }
 
 /// Entropy at a specific sample size.
@@ -447,6 +480,254 @@ pub fn distribution_stats(data: &[u8]) -> DistributionResult {
     }
 }
 
+pub fn approximate_entropy(data: &[u8], m: usize, r: f64) -> ApproxEntropyResult {
+    const MAX_SAMPLES: usize = 5000;
+
+    let mut sampled: Vec<f64> = data.iter().map(|&b| b as f64).collect();
+    if sampled.len() > MAX_SAMPLES {
+        let step = (sampled.len() / MAX_SAMPLES).max(1);
+        sampled = sampled
+            .iter()
+            .step_by(step)
+            .take(MAX_SAMPLES)
+            .copied()
+            .collect();
+    }
+
+    let actual_samples = sampled.len();
+    if m == 0 || actual_samples <= m + 1 || !r.is_finite() || r <= 0.0 {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m,
+            r,
+            phi_m: f64::NAN,
+            phi_m_plus_1: f64::NAN,
+            actual_samples,
+            is_valid: false,
+        };
+    }
+
+    let mean = sampled.iter().sum::<f64>() / actual_samples as f64;
+    let variance = sampled
+        .iter()
+        .map(|x| {
+            let d = x - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / (actual_samples as f64 - 1.0);
+    let std_dev = variance.sqrt();
+    if std_dev == 0.0 {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m,
+            r,
+            phi_m: f64::NAN,
+            phi_m_plus_1: f64::NAN,
+            actual_samples,
+            is_valid: false,
+        };
+    }
+
+    fn phi(sampled: &[f64], m: usize, r: f64) -> Option<f64> {
+        if sampled.len() < m {
+            return None;
+        }
+
+        let n_templates = sampled.len() - m + 1;
+        if n_templates == 0 {
+            return None;
+        }
+
+        let mut sum_ln = 0.0;
+        for i in 0..n_templates {
+            let mut count = 0usize;
+            for j in 0..n_templates {
+                let mut max_dist = 0.0;
+                for k in 0..m {
+                    let dist = (sampled[i + k] - sampled[j + k]).abs();
+                    if dist > max_dist {
+                        max_dist = dist;
+                    }
+                    if max_dist >= r {
+                        break;
+                    }
+                }
+                if max_dist < r {
+                    count += 1;
+                }
+            }
+
+            if count == 0 {
+                return None;
+            }
+
+            let c_i = count as f64 / n_templates as f64;
+            if c_i <= 0.0 {
+                return None;
+            }
+            sum_ln += c_i.ln();
+        }
+
+        Some(sum_ln / n_templates as f64)
+    }
+
+    let Some(phi_m) = phi(&sampled, m, r) else {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m,
+            r,
+            phi_m: f64::NAN,
+            phi_m_plus_1: f64::NAN,
+            actual_samples,
+            is_valid: false,
+        };
+    };
+
+    let Some(phi_m_plus_1) = phi(&sampled, m + 1, r) else {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m,
+            r,
+            phi_m,
+            phi_m_plus_1: f64::NAN,
+            actual_samples,
+            is_valid: false,
+        };
+    };
+
+    let apen = phi_m - phi_m_plus_1;
+    ApproxEntropyResult {
+        apen,
+        m,
+        r,
+        phi_m,
+        phi_m_plus_1,
+        actual_samples,
+        is_valid: apen.is_finite(),
+    }
+}
+
+pub fn approximate_entropy_default(data: &[u8]) -> ApproxEntropyResult {
+    const DEFAULT_M: usize = 2;
+    const MAX_SAMPLES: usize = 5000;
+
+    let mut sampled: Vec<f64> = data.iter().map(|&b| b as f64).collect();
+    if sampled.len() > MAX_SAMPLES {
+        let step = (sampled.len() / MAX_SAMPLES).max(1);
+        sampled = sampled
+            .iter()
+            .step_by(step)
+            .take(MAX_SAMPLES)
+            .copied()
+            .collect();
+    }
+
+    if sampled.len() <= DEFAULT_M + 1 {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m: DEFAULT_M,
+            r: f64::NAN,
+            phi_m: f64::NAN,
+            phi_m_plus_1: f64::NAN,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    let mean = sampled.iter().sum::<f64>() / sampled.len() as f64;
+    let variance = sampled
+        .iter()
+        .map(|x| {
+            let d = x - mean;
+            d * d
+        })
+        .sum::<f64>()
+        / (sampled.len() as f64 - 1.0);
+    let std_dev = variance.sqrt();
+    if std_dev == 0.0 {
+        return ApproxEntropyResult {
+            apen: f64::NAN,
+            m: DEFAULT_M,
+            r: 0.0,
+            phi_m: f64::NAN,
+            phi_m_plus_1: f64::NAN,
+            actual_samples: sampled.len(),
+            is_valid: false,
+        };
+    }
+
+    approximate_entropy(data, DEFAULT_M, 0.2 * std_dev)
+}
+
+pub fn anderson_darling(data: &[u8]) -> AndersonDarlingResult {
+    const MAX_SAMPLES: usize = 2048;
+
+    let critical_values = vec![
+        (0.25, 0.787),
+        (0.10, 1.248),
+        (0.05, 1.610),
+        (0.025, 2.092),
+        (0.01, 2.880),
+    ];
+
+    if data.len() < 2 {
+        return AndersonDarlingResult {
+            statistic: 0.0,
+            p_value: 0.0,
+            is_uniform: false,
+            critical_values,
+            is_valid: false,
+        };
+    }
+
+    let sample = if data.len() > MAX_SAMPLES {
+        &data[..MAX_SAMPLES]
+    } else {
+        data
+    };
+
+    let n = sample.len();
+    let n_f = n as f64;
+
+    let mut sorted = sample.to_vec();
+    sorted.sort_unstable();
+
+    let u: Vec<f64> = sorted.iter().map(|&x| (x as f64 + 0.5) / 256.0).collect();
+
+    let mut sum = 0.0;
+    for i in 0..n {
+        let coeff = (2 * i + 1) as f64;
+        let left = u[i].ln();
+        let right = (1.0 - u[n - 1 - i]).ln();
+        sum += coeff * (left + right);
+    }
+
+    let a2 = -n_f - (sum / n_f);
+    let statistic = a2 * (1.0 + 4.0 / n_f - 25.0 / (n_f * n_f));
+
+    let p_value = if statistic > 10.0 {
+        0.0
+    } else if statistic >= 0.6 {
+        (1.2937 - 5.709 * statistic + 0.0186 * statistic * statistic).exp()
+    } else if statistic >= 0.34 {
+        (0.9177 - 4.279 * statistic - 1.38 * statistic * statistic).exp()
+    } else if statistic >= 0.2 {
+        1.0 - (-8.318 + 42.796 * statistic - 59.938 * statistic * statistic).exp()
+    } else {
+        1.0 - (-13.436 + 101.14 * statistic - 223.73 * statistic * statistic).exp()
+    }
+    .clamp(0.0, 1.0);
+
+    AndersonDarlingResult {
+        statistic,
+        p_value,
+        is_uniform: p_value > 0.05,
+        critical_values,
+        is_valid: true,
+    }
+}
+
 /// Test stationarity by comparing window means (ANOVA-like).
 pub fn stationarity_test(data: &[u8]) -> StationarityResult {
     let n_windows = 10usize;
@@ -545,6 +826,87 @@ pub fn runs_analysis(data: &[u8]) -> RunsResult {
         total_runs,
         expected_runs,
     }
+}
+
+pub fn permutation_entropy(data: &[u8], order: usize, delay: usize) -> PermutationEntropyResult {
+    if order < 2 || delay == 0 {
+        return PermutationEntropyResult {
+            permutation_entropy: 0.0,
+            normalized_entropy: 0.0,
+            order,
+            delay,
+            n_patterns: 0,
+            pattern_counts: Vec::new(),
+            is_valid: false,
+        };
+    }
+
+    let required_len = (order - 1).saturating_mul(delay).saturating_add(2);
+    if data.len() < required_len {
+        return PermutationEntropyResult {
+            permutation_entropy: 0.0,
+            normalized_entropy: 0.0,
+            order,
+            delay,
+            n_patterns: 0,
+            pattern_counts: Vec::new(),
+            is_valid: false,
+        };
+    }
+
+    let arr: Vec<f64> = data.iter().map(|&b| b as f64).collect();
+    let n_windows = data.len() - (order - 1) * delay;
+
+    let mut counts: HashMap<Vec<usize>, usize> = HashMap::new();
+    for i in 0..n_windows {
+        let mut window = Vec::with_capacity(order);
+        for j in 0..order {
+            window.push(arr[i + j * delay]);
+        }
+
+        let mut pattern: Vec<usize> = (0..order).collect();
+        pattern.sort_by(|&a, &b| {
+            window[a]
+                .partial_cmp(&window[b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        *counts.entry(pattern).or_insert(0) += 1;
+    }
+
+    let total_patterns = n_windows as f64;
+    let mut entropy = 0.0;
+    for &count in counts.values() {
+        let p = count as f64 / total_patterns;
+        if p > 0.0 {
+            entropy -= p * p.ln();
+        }
+    }
+
+    let max_entropy = (2..=order).map(|v| (v as f64).ln()).sum::<f64>();
+    let normalized_entropy = if max_entropy > 0.0 {
+        entropy / max_entropy
+    } else {
+        0.0
+    };
+
+    let n_patterns = counts.len();
+    let mut pattern_counts: Vec<(Vec<usize>, usize)> = counts.into_iter().collect();
+    pattern_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    pattern_counts.truncate(20);
+
+    PermutationEntropyResult {
+        permutation_entropy: entropy,
+        normalized_entropy,
+        order,
+        delay,
+        n_patterns,
+        pattern_counts,
+        is_valid: true,
+    }
+}
+
+pub fn permutation_entropy_default(data: &[u8]) -> PermutationEntropyResult {
+    permutation_entropy(data, 3, 1)
 }
 
 /// Compute cross-correlation matrix between multiple sources.
@@ -705,6 +1067,38 @@ mod tests {
     }
 
     #[test]
+    fn test_anderson_darling_random_uniform() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = anderson_darling(&data);
+        assert!(result.is_valid);
+        assert!(result.is_uniform);
+        assert!(result.p_value > 0.05);
+    }
+
+    #[test]
+    fn test_anderson_darling_constant_rejects_uniform() {
+        let data = vec![42u8; 1000];
+        let result = anderson_darling(&data);
+        assert!(result.is_valid);
+        assert!(!result.is_uniform);
+        assert!(result.statistic > 100.0);
+    }
+
+    #[test]
+    fn test_anderson_darling_biased_zero_data() {
+        let data: Vec<u8> = (0..1000).map(|_| 0u8).collect();
+        let result = anderson_darling(&data);
+        assert!(result.is_valid);
+        assert!(!result.is_uniform);
+    }
+
+    #[test]
+    fn test_anderson_darling_empty_invalid() {
+        let result = anderson_darling(&[]);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
     fn test_stationarity_stationary() {
         let data = random_data(10000);
         let result = stationarity_test(&data);
@@ -727,6 +1121,72 @@ mod tests {
         let result = cross_correlation_matrix(&[("a".to_string(), a), ("b".to_string(), b)]);
         assert_eq!(result.pairs.len(), 1);
         assert!(result.pairs[0].correlation.abs() < 0.3);
+    }
+
+    #[test]
+    fn test_approximate_entropy_random_high() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = approximate_entropy_default(&data);
+        assert!(result.is_valid);
+        assert!(result.apen > 0.5);
+    }
+
+    #[test]
+    fn test_approximate_entropy_periodic_lower_than_random() {
+        let random = random_data_seeded(5000, 0xdeadbeef);
+        let periodic: Vec<u8> = (0..5000).map(|i| (i % 4) as u8).collect();
+
+        let random_result = approximate_entropy_default(&random);
+        let periodic_result = approximate_entropy_default(&periodic);
+
+        assert!(periodic_result.is_valid);
+        assert!(random_result.is_valid);
+        assert!(periodic_result.apen < random_result.apen);
+    }
+
+    #[test]
+    fn test_approximate_entropy_constant_invalid() {
+        let data = vec![42u8; 5000];
+        let result = approximate_entropy_default(&data);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_approximate_entropy_empty_invalid() {
+        let result = approximate_entropy_default(&[]);
+        assert!(!result.is_valid);
+    }
+
+    #[test]
+    fn test_permutation_entropy_random_high() {
+        let data = random_data_seeded(5000, 0xdeadbeef);
+        let result = permutation_entropy(&data, 3, 1);
+        assert!(result.is_valid);
+        assert!(result.normalized_entropy > 0.95);
+    }
+
+    #[test]
+    fn test_permutation_entropy_monotone_low() {
+        let data: Vec<u8> = (0..1000).map(|i| (i % 256) as u8).collect();
+        let result = permutation_entropy(&data, 3, 1);
+        assert!(result.is_valid);
+        assert!(result.normalized_entropy < 0.3);
+    }
+
+    #[test]
+    fn test_permutation_entropy_constant_zero() {
+        let data = vec![42u8; 1000];
+        let result = permutation_entropy_default(&data);
+        assert!(result.is_valid);
+        assert!(result.normalized_entropy.abs() < 1e-12);
+        assert_eq!(result.n_patterns, 1);
+    }
+
+    #[test]
+    fn test_permutation_entropy_empty_invalid() {
+        let result = permutation_entropy_default(&[]);
+        assert!(!result.is_valid);
+        assert_eq!(result.n_patterns, 0);
     }
 
     #[test]

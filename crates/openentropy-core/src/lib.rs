@@ -53,23 +53,30 @@ pub mod pool;
 pub mod session;
 pub mod source;
 pub mod sources;
+pub mod statistics;
 pub mod telemetry;
+pub mod temporal;
 pub mod trials;
 pub mod verdict;
 
 pub use analysis::{
-    AutocorrResult, BitBiasResult, CrossCorrMatrix, CrossCorrPair, DistributionResult, RunsResult,
-    SourceAnalysis, SpectralResult, StationarityResult, autocorrelation_profile, bit_bias,
-    cross_correlation_matrix, distribution_stats, full_analysis, pearson_correlation,
-    runs_analysis, spectral_analysis, stationarity_test,
+    AndersonDarlingResult, ApproxEntropyResult, AutocorrResult, BitBiasResult, CrossCorrMatrix,
+    CrossCorrPair, DistributionResult, PermutationEntropyResult, RunsResult, SourceAnalysis,
+    SpectralResult, StationarityResult, anderson_darling, approximate_entropy,
+    approximate_entropy_default, autocorrelation_profile, bit_bias, cross_correlation_matrix,
+    distribution_stats, full_analysis, pearson_correlation, permutation_entropy,
+    permutation_entropy_default, runs_analysis, spectral_analysis, stationarity_test,
 };
 pub use benchmark::{
     BenchConfig, BenchReport, BenchSourceReport, PoolQualityReport, RankBy, benchmark_sources,
 };
 pub use chaos::{
-    BiEntropyResult, ChaosAnalysis, CorrelationDimResult, EpiplexityResult, HurstResult,
-    LyapunovResult, bientropy, chaos_analysis, correlation_dimension, epiplexity, hurst_exponent,
-    lyapunov_exponent,
+    BiEntropyResult, BootstrapHurstResult, ChaosAnalysis, CorrelationDimResult, DfaResult,
+    EpiplexityResult, HurstResult, LyapunovResult, RollingHurstResult, RollingHurstWindow,
+    RqaResult, SampleEntropyResult, bientropy, bootstrap_hurst, bootstrap_hurst_default,
+    chaos_analysis, correlation_dimension, dfa, dfa_default, epiplexity, hurst_exponent,
+    lyapunov_exponent, rolling_hurst, rolling_hurst_default, rqa, rqa_default, sample_entropy,
+    sample_entropy_default,
 };
 pub use comparison::{
     AggregateDelta, ComparisonResult, DigramAnalysis, MarkovAnalysis, MultiLagAnalysis,
@@ -92,19 +99,41 @@ pub use session::{
     detect_machine_info, list_sessions, load_session_raw_data,
 };
 pub use source::{EntropySource, Platform, Requirement, SourceCategory, SourceInfo};
+pub use statistics::{
+    AnovaResult, CramerVonMisesResult, GapTestResult, KruskalWallisResult, LeveneResult,
+    LjungBoxResult, MultipleCorrectionResult, PowerResult, StatisticsAnalysis, anova,
+    bonferroni_correction, cramer_von_mises, gap_test, gap_test_default,
+    holm_bonferroni_correction, kruskal_wallis, levene_test, ljung_box, ljung_box_default,
+    power_analysis, power_analysis_default, statistics_analysis,
+};
 pub use telemetry::{
     MODEL_ID as TELEMETRY_MODEL_ID, MODEL_VERSION as TELEMETRY_MODEL_VERSION, TelemetryMetric,
     TelemetryMetricDelta, TelemetrySnapshot, TelemetryWindowReport, build_telemetry_window,
     collect_telemetry_snapshot, collect_telemetry_window,
+};
+pub use temporal::{
+    Anomaly, AnomalyDetectionResult, Burst, BurstResult, ChangePoint, ChangePointResult,
+    DriftResult, DriftSegment, SessionStats, Shift, ShiftResult, StabilityResult,
+    TemporalAnalysisSuite, anomaly_detection, anomaly_detection_default, burst_detection,
+    burst_detection_default, change_point_detection, change_point_detection_default,
+    inter_session_stability, shift_detection, shift_detection_default, temporal_analysis_suite,
+    temporal_drift, temporal_drift_default,
 };
 pub use trials::{
     CalibrationResult, StoufferResult, TrialAnalysis, TrialConfig, calibration_check,
     stouffer_combine, trial_analysis,
 };
 pub use verdict::{
-    Verdict, metric_or_na, verdict_autocorr, verdict_bias, verdict_bientropy, verdict_compression,
-    verdict_corrdim, verdict_distribution, verdict_hurst, verdict_lyapunov, verdict_runs,
-    verdict_spectral, verdict_stationarity,
+    Verdict, metric_or_na, verdict_anderson_darling, verdict_apen, verdict_autocorr, verdict_bias,
+    verdict_bientropy, verdict_compression, verdict_corrdim, verdict_cramer_von_mises, verdict_dfa,
+    verdict_distribution, verdict_hurst, verdict_ljung_box, verdict_lyapunov, verdict_permen,
+    verdict_rqa_det, verdict_runs, verdict_sampen, verdict_spectral, verdict_stationarity,
+};
+pub mod synchrony;
+pub use synchrony::{
+    CrossSyncResult, GlobalEvent, GlobalEventResult, MutualInfoResult, PhaseCoherenceResult,
+    SynchronyAnalysis, cross_sync, global_event_detection, mutual_information, phase_coherence,
+    synchrony_analysis,
 };
 /// Library version (from Cargo.toml).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
