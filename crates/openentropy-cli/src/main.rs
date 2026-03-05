@@ -139,9 +139,25 @@ enum Commands {
         #[arg(long, value_parser = ["raw", "sha256", "samples"])]
         qcicada_mode: Option<String>,
 
-        /// Run chaos theory analysis (Hurst, Lyapunov, correlation dimension, BiEntropy, Epiplexity)
+        /// Core chaos analysis (Hurst, Lyapunov, correlation dimension, BiEntropy, Epiplexity)
         #[arg(long)]
         chaos: bool,
+
+        /// Temporal analysis tier (change-point, anomaly, burst, shift, drift)
+        #[arg(long)]
+        temporal: bool,
+
+        /// Statistics analysis tier (Cramer-von Mises, Ljung-Box, gap)
+        #[arg(long)]
+        statistics: bool,
+
+        /// Synchrony analysis tier (requires 2+ streams)
+        #[arg(long)]
+        synchrony: bool,
+
+        /// Extended chaos analysis tier (SampEn, ApEn, DFA, RQA, rolling/bootstrap Hurst, PermEn, AD)
+        #[arg(long)]
+        chaos_extended: bool,
     },
 
     /// Record entropy samples to disk for offline analysis
@@ -402,6 +418,10 @@ fn main() {
             report,
             qcicada_mode,
             chaos,
+            temporal,
+            statistics,
+            synchrony,
+            chaos_extended,
         } => {
             commands::apply_qcicada_mode(qcicada_mode.as_deref());
             let positional = merge_positional_and_legacy(&source, sources.as_deref());
@@ -417,6 +437,10 @@ fn main() {
                 include_telemetry: telemetry,
                 report,
                 chaos,
+                temporal,
+                statistics,
+                synchrony,
+                chaos_extended,
             })
         }
         Commands::Record {
