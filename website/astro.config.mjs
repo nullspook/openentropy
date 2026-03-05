@@ -133,7 +133,6 @@ export default defineConfig({
           items: [
             { slug: 'guides/sdk-integration' },
             { slug: 'guides/troubleshooting' },
-            { slug: 'guides/ai-search' },
           ],
         },
       ],
