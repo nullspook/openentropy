@@ -1,11 +1,13 @@
+use std::collections::HashMap;
 use std::time::Instant;
 
 use openentropy_core::analysis;
 use openentropy_core::conditioning::{ConditioningMode, condition, min_entropy_estimate};
 use openentropy_core::verdict::{
-    metric_or_na, verdict_autocorr, verdict_bias, verdict_bientropy, verdict_compression,
-    verdict_corrdim, verdict_distribution, verdict_hurst, verdict_lyapunov, verdict_runs,
-    verdict_spectral, verdict_stationarity,
+    metric_or_na, verdict_anderson_darling, verdict_apen, verdict_autocorr, verdict_bias,
+    verdict_bientropy, verdict_compression, verdict_corrdim, verdict_cramer_von_mises, verdict_dfa,
+    verdict_distribution, verdict_hurst, verdict_ljung_box, verdict_lyapunov, verdict_permen,
+    verdict_rqa_det, verdict_runs, verdict_sampen, verdict_spectral, verdict_stationarity,
 };
 
 pub struct AnalyzeArgs {
@@ -20,6 +22,10 @@ pub struct AnalyzeArgs {
     pub include_telemetry: bool,
     pub report: bool,
     pub chaos: bool,
+    pub temporal: bool,
+    pub statistics: bool,
+    pub synchrony: bool,
+    pub chaos_extended: bool,
 }
 
 /// Resolved values after merging profile defaults with explicit flags.
@@ -30,6 +36,10 @@ struct Resolved {
     report: bool,
     cross_correlation: bool,
     chaos: bool,
+    temporal: bool,
+    statistics: bool,
+    synchrony: bool,
+    chaos_extended: bool,
 }
 
 pub fn run(args: AnalyzeArgs) {
@@ -54,6 +64,11 @@ pub fn run(args: AnalyzeArgs) {
         report: args.report || matches!(profile, openentropy_core::AnalysisProfile::Security),
         cross_correlation: args.cross_correlation || config.cross_correlation,
         chaos: args.chaos || config.chaos,
+        temporal: args.temporal || matches!(profile, openentropy_core::AnalysisProfile::Deep),
+        statistics: args.statistics || matches!(profile, openentropy_core::AnalysisProfile::Deep),
+        synchrony: args.synchrony,
+        chaos_extended: args.chaos_extended
+            || matches!(profile, openentropy_core::AnalysisProfile::Deep),
     };
 
     println!(
@@ -132,7 +147,13 @@ fn run_analysis(args: &AnalyzeArgs, resolved: &Resolved) {
 
         all_results.push(result);
 
-        if resolved.cross_correlation || resolved.chaos {
+        if resolved.cross_correlation
+            || resolved.chaos
+            || resolved.temporal
+            || resolved.statistics
+            || resolved.synchrony
+            || resolved.chaos_extended
+        {
             all_data.push((name, data));
         }
     }
@@ -148,64 +169,73 @@ fn run_analysis(args: &AnalyzeArgs, resolved: &Resolved) {
         super::print_cross_correlation(matrix, all_data.len());
     }
 
-    // Chaos theory analysis.
-    let chaos_results: Vec<(String, openentropy_core::chaos::ChaosAnalysis)> = if resolved.chaos {
+    let chaos_results: Vec<(String, serde_json::Value)> = if resolved.chaos {
         println!();
-        println!("  ┌─ Chaos Theory Analysis");
+        println!("  ┌─ Chaos Analysis (Core)");
         let results: Vec<_> = all_data
             .iter()
             .map(|(name, data)| {
-                let chaos = openentropy_core::chaos::chaos_analysis(data);
-                let hurst_value = metric_or_na(chaos.hurst.hurst_exponent, chaos.hurst.is_valid);
-                let hurst_r2 = metric_or_na(chaos.hurst.r_squared, chaos.hurst.is_valid);
-                let lyapunov_value =
-                    metric_or_na(chaos.lyapunov.lyapunov_exponent, chaos.lyapunov.is_valid);
+                let hurst = openentropy_core::chaos::hurst_exponent(data);
+                let lyapunov = openentropy_core::chaos::lyapunov_exponent(data);
+                let correlation_dimension = openentropy_core::chaos::correlation_dimension(data);
+                let bientropy = openentropy_core::chaos::bientropy(data);
+                let epiplexity = openentropy_core::chaos::epiplexity(data);
+
+                let hurst_value = metric_or_na(hurst.hurst_exponent, hurst.is_valid);
+                let hurst_r2 = metric_or_na(hurst.r_squared, hurst.is_valid);
+                let lyapunov_value = metric_or_na(lyapunov.lyapunov_exponent, lyapunov.is_valid);
                 let corrdim_value = metric_or_na(
-                    chaos.correlation_dimension.dimension,
-                    chaos.correlation_dimension.is_valid,
+                    correlation_dimension.dimension,
+                    correlation_dimension.is_valid,
                 );
-                let bientropy_value = metric_or_na(chaos.bientropy.bien, chaos.bientropy.is_valid);
-                let tbientropy_value =
-                    metric_or_na(chaos.bientropy.tbien, chaos.bientropy.is_valid);
-                let epiplexity_ratio = metric_or_na(
-                    chaos.epiplexity.compression_ratio,
-                    chaos.epiplexity.is_valid,
-                );
+                let bientropy_value = metric_or_na(bientropy.bien, bientropy.is_valid);
+                let tbientropy_value = metric_or_na(bientropy.tbien, bientropy.is_valid);
+                let epiplexity_ratio =
+                    metric_or_na(epiplexity.compression_ratio, epiplexity.is_valid);
                 println!("  │");
                 println!("  │  {}", name);
                 println!(
                     "  │  {:<22} {:>4}  H={} (R²={})",
                     "Hurst exponent",
-                    verdict_hurst(chaos.hurst.hurst_exponent).as_str(),
+                    verdict_hurst(hurst.hurst_exponent).as_str(),
                     hurst_value,
                     hurst_r2,
                 );
                 println!(
                     "  │  {:<22} {:>4}  λ={}",
                     "Lyapunov exponent",
-                    verdict_lyapunov(chaos.lyapunov.lyapunov_exponent).as_str(),
+                    verdict_lyapunov(lyapunov.lyapunov_exponent).as_str(),
                     lyapunov_value,
                 );
                 println!(
                     "  │  {:<22} {:>4}  D₂={}",
                     "Correlation dim",
-                    verdict_corrdim(chaos.correlation_dimension.dimension).as_str(),
+                    verdict_corrdim(correlation_dimension.dimension).as_str(),
                     corrdim_value,
                 );
                 println!(
                     "  │  {:<22} {:>4}  BiEn={} TBiEn={}",
                     "BiEntropy",
-                    verdict_bientropy(chaos.bientropy.bien).as_str(),
+                    verdict_bientropy(bientropy.bien).as_str(),
                     bientropy_value,
                     tbientropy_value,
                 );
                 println!(
                     "  │  {:<22} {:>4}  ratio={}",
                     "Epiplexity",
-                    verdict_compression(chaos.epiplexity.compression_ratio).as_str(),
+                    verdict_compression(epiplexity.compression_ratio).as_str(),
                     epiplexity_ratio,
                 );
-                (name.clone(), chaos)
+                (
+                    name.clone(),
+                    serde_json::json!({
+                        "hurst": hurst,
+                        "lyapunov": lyapunov,
+                        "correlation_dimension": correlation_dimension,
+                        "bientropy": bientropy,
+                        "epiplexity": epiplexity,
+                    }),
+                )
             })
             .collect();
         println!("  └─");
@@ -213,6 +243,227 @@ fn run_analysis(args: &AnalyzeArgs, resolved: &Resolved) {
     } else {
         Vec::new()
     };
+
+    let mut statistics_results: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut temporal_results: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut chaos_extended_results: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut synchrony_results: HashMap<String, serde_json::Value> = HashMap::new();
+
+    // Statistics analysis.
+    if resolved.statistics {
+        println!();
+        println!("  ┌─ Statistics Analysis");
+        for (name, data) in &all_data {
+            let stats = openentropy_core::statistics::statistics_analysis(data);
+            println!("  │");
+            println!("  │  {}", name);
+            println!(
+                "  │  {:<22} {:>4}  W={:.4} p={:.4}",
+                "Cramér-von Mises",
+                verdict_cramer_von_mises(stats.cramer_von_mises.p_value).as_str(),
+                stats.cramer_von_mises.statistic,
+                stats.cramer_von_mises.p_value,
+            );
+            println!(
+                "  │  {:<22} {:>4}  Q={:.4} p={:.4}",
+                "Ljung-Box",
+                verdict_ljung_box(stats.ljung_box.p_value).as_str(),
+                stats.ljung_box.q_statistic,
+                stats.ljung_box.p_value,
+            );
+            println!(
+                "  │  {:<22}  mean_gap={:.4} expected={:.4}",
+                "Gap test", stats.gap_test.mean_gap, stats.gap_test.expected_gap,
+            );
+            statistics_results.insert(name.clone(), serde_json::json!(stats));
+        }
+        println!("  └─");
+    }
+
+    // Temporal analysis.
+    if resolved.temporal {
+        println!();
+        println!("  ┌─ Temporal Analysis");
+        for (name, data) in &all_data {
+            let temporal = openentropy_core::temporal::temporal_analysis_suite(data);
+            println!("  │");
+            println!("  │  {}", name);
+            println!(
+                "  │  {:<22}  change_points={}",
+                "Change-point detection",
+                temporal.change_points.change_points.len(),
+            );
+            println!(
+                "  │  {:<22}  anomalies={}",
+                "Anomaly detection",
+                temporal.anomalies.anomalies.len(),
+            );
+            println!(
+                "  │  {:<22}  bursts={}",
+                "Burst detection",
+                temporal.bursts.bursts.len(),
+            );
+            println!(
+                "  │  {:<22}  shifts={}",
+                "Shift detection",
+                temporal.shifts.shifts.len(),
+            );
+            println!(
+                "  │  {:<22}  segments={}",
+                "Temporal drift",
+                temporal.drift.segments.len(),
+            );
+            println!(
+                "  │  {:<22}  drift_score={:.4}",
+                "Drift score", temporal.drift.drift_slope,
+            );
+            temporal_results.insert(name.clone(), serde_json::json!(temporal));
+        }
+        println!("  └─");
+    }
+
+    // Chaos extended analysis.
+    if resolved.chaos_extended {
+        println!();
+        println!("  ┌─ Chaos Extended Analysis");
+        for (name, data) in &all_data {
+            let sampen = openentropy_core::chaos::sample_entropy_default(data);
+            let apen = openentropy_core::analysis::approximate_entropy_default(data);
+            let dfa = openentropy_core::chaos::dfa_default(data);
+            let rqa = openentropy_core::chaos::rqa_default(data);
+            let rolling_hurst = openentropy_core::chaos::rolling_hurst_default(data);
+            let bootstrap_hurst = openentropy_core::chaos::bootstrap_hurst_default(data);
+            let permen = openentropy_core::analysis::permutation_entropy_default(data);
+            let anderson_darling = openentropy_core::analysis::anderson_darling(data);
+            println!("  │");
+            println!("  │  {}", name);
+            println!(
+                "  │  {:<22} {:>4}  SampEn={:.4}",
+                "Sample entropy",
+                verdict_sampen(sampen.sample_entropy).as_str(),
+                sampen.sample_entropy,
+            );
+            println!(
+                "  │  {:<22} {:>4}  ApEn={:.4}",
+                "Approx entropy",
+                verdict_apen(apen.apen).as_str(),
+                apen.apen,
+            );
+            println!(
+                "  │  {:<22} {:>4}  α={:.4}",
+                "DFA",
+                verdict_dfa(dfa.alpha).as_str(),
+                dfa.alpha,
+            );
+            println!(
+                "  │  {:<22} {:>4}  DET={:.4}",
+                "RQA",
+                verdict_rqa_det(rqa.determinism).as_str(),
+                rqa.determinism,
+            );
+            println!(
+                "  │  {:<22}  mean_H={} p={}",
+                "Bootstrap Hurst",
+                metric_or_na(
+                    bootstrap_hurst.mean_surrogate_hurst,
+                    bootstrap_hurst.is_valid
+                ),
+                metric_or_na(bootstrap_hurst.p_value, bootstrap_hurst.is_valid),
+            );
+            println!(
+                "  │  {:<22}  mean_H={}",
+                "Rolling Hurst",
+                metric_or_na(rolling_hurst.mean_hurst, rolling_hurst.is_valid),
+            );
+            println!(
+                "  │  {:<22} {:>4}  H={:.4}",
+                "Permutation entropy",
+                verdict_permen(permen.normalized_entropy).as_str(),
+                permen.normalized_entropy,
+            );
+            println!(
+                "  │  {:<22} {:>4}  p={:.4}",
+                "Anderson-Darling",
+                verdict_anderson_darling(anderson_darling.p_value).as_str(),
+                anderson_darling.p_value,
+            );
+            chaos_extended_results.insert(
+                name.clone(),
+                serde_json::json!({
+                    "sample_entropy": sampen,
+                    "approximate_entropy": apen,
+                    "dfa": dfa,
+                    "rqa": rqa,
+                    "bootstrap_hurst": bootstrap_hurst,
+                    "rolling_hurst": rolling_hurst,
+                    "permutation_entropy": permen,
+                    "anderson_darling": anderson_darling,
+                }),
+            );
+        }
+        println!("  └─");
+    }
+
+    if resolved.synchrony {
+        println!();
+        if all_data.len() < 2 {
+            println!("  ┌─ Synchrony Analysis");
+            println!("  │  N/A — requires at least 2 analyzed sources");
+            println!("  └─");
+        } else {
+            println!("  ┌─ Synchrony Analysis");
+            for i in 0..all_data.len() {
+                for j in (i + 1)..all_data.len() {
+                    let (name_a, data_a) = &all_data[i];
+                    let (name_b, data_b) = &all_data[j];
+                    let sync = openentropy_core::synchrony::synchrony_analysis(data_a, data_b);
+
+                    println!("  │");
+                    println!("  │  {} ↔ {}", name_a, name_b);
+                    println!(
+                        "  │  {:<22}  NMI={}",
+                        "Mutual information",
+                        metric_or_na(sync.mutual_info.normalized_mi, sync.mutual_info.is_valid),
+                    );
+                    println!(
+                        "  │  {:<22}  coh={}",
+                        "Sign coherence",
+                        metric_or_na(
+                            sync.phase_coherence.coherence,
+                            sync.phase_coherence.is_valid
+                        ),
+                    );
+                    println!(
+                        "  │  {:<22}  r={} lag={}",
+                        "Cross sync",
+                        metric_or_na(
+                            sync.cross_sync.max_cross_correlation,
+                            sync.cross_sync.is_valid
+                        ),
+                        sync.cross_sync.lag_at_max,
+                    );
+                    let key = format!("{}__vs__{}", name_a, name_b);
+                    synchrony_results.insert(key, serde_json::json!(sync));
+                }
+            }
+
+            let stream_refs: Vec<&[u8]> =
+                all_data.iter().map(|(_, data)| data.as_slice()).collect();
+            let global = openentropy_core::synchrony::global_event_detection(&stream_refs);
+            println!("  │");
+            println!(
+                "  │  {:<22}  events={} rate={}",
+                "Global events",
+                global.n_events,
+                metric_or_na(global.event_rate, global.is_valid),
+            );
+            synchrony_results.insert(
+                "global_event_detection".to_string(),
+                serde_json::json!(global),
+            );
+            println!("  └─");
+        }
+    }
 
     let telemetry_report = telemetry.finish();
     if let Some(ref window) = telemetry_report {
@@ -236,6 +487,18 @@ fn run_analysis(args: &AnalyzeArgs, resolved: &Resolved) {
             let chaos_map: std::collections::HashMap<String, _> =
                 chaos_results.into_iter().collect();
             json["chaos"] = serde_json::json!(chaos_map);
+        }
+        if !statistics_results.is_empty() {
+            json["statistics"] = serde_json::json!(statistics_results);
+        }
+        if !temporal_results.is_empty() {
+            json["temporal"] = serde_json::json!(temporal_results);
+        }
+        if !chaos_extended_results.is_empty() {
+            json["chaos_extended"] = serde_json::json!(chaos_extended_results);
+        }
+        if !synchrony_results.is_empty() {
+            json["synchrony"] = serde_json::json!(synchrony_results);
         }
         super::write_json(&json, path, "Results");
     }

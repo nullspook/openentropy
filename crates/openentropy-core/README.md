@@ -16,7 +16,7 @@ Core Rust library for OpenEntropy.
 
 ```toml
 [dependencies]
-openentropy-core = "0.10"
+openentropy-core = "0.12"
 ```
 
 ## Example

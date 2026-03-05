@@ -11,7 +11,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-openentropy-core = "0.10"
+openentropy-core = "0.12"
 ```
 
 ## Quick Start

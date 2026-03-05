@@ -15,6 +15,28 @@ report = analyze([("source", data)], profile="deep")
 Use `profile="security"` for cryptographic validation and
 `profile="deep"` for full characterization.
 
+## Tiered Analysis Calls
+
+```python
+from openentropy import (
+    temporal_analysis_suite,
+    statistics_analysis,
+    synchrony_analysis,
+    sample_entropy,
+    dfa_analysis,
+    rqa_analysis,
+)
+
+temporal = temporal_analysis_suite(data)
+statistics = statistics_analysis(data)
+sync = synchrony_analysis(data_a, data_b)
+extended = {
+    "sampen": sample_entropy(data),
+    "dfa": dfa_analysis(data),
+    "rqa": rqa_analysis(data),
+}
+```
+
 ## Forensic + Chaos + Trials
 
 ```python

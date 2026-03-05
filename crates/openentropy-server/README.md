@@ -8,7 +8,7 @@ Provides API endpoints for entropy bytes and health reporting, including ANU QRN
 
 ```toml
 [dependencies]
-openentropy-server = "0.7"
+openentropy-server = "0.12"
 ```
 
 ## Repository

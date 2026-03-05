@@ -74,6 +74,39 @@ fn pearson_correlation(a: &[u8], b: &[u8]) -> f64 {
     openentropy_core::analysis::pearson_correlation(a, b)
 }
 
+/// Approximate entropy (m=2, r=0.2*std).
+///
+/// Quantifies regularity and unpredictability.
+#[pyfunction]
+fn approximate_entropy(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::analysis::approximate_entropy_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Permutation entropy (order=3, delay=1).
+///
+/// Measures complexity via ordinal patterns.
+#[pyfunction]
+fn permutation_entropy(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::analysis::permutation_entropy_default(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Anderson-Darling test for uniformity.
+///
+/// Tests whether byte values follow a uniform distribution.
+#[pyfunction]
+fn anderson_darling(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let result = openentropy_core::analysis::anderson_darling(data);
+    pythonize(py, &result)
+        .map(|obj| obj.unbind())
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(full_analysis, m)?)?;
     m.add_function(wrap_pyfunction!(autocorrelation_profile, m)?)?;
@@ -84,5 +117,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(runs_analysis, m)?)?;
     m.add_function(wrap_pyfunction!(cross_correlation_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(pearson_correlation, m)?)?;
+    m.add_function(wrap_pyfunction!(approximate_entropy, m)?)?;
+    m.add_function(wrap_pyfunction!(permutation_entropy, m)?)?;
+    m.add_function(wrap_pyfunction!(anderson_darling, m)?)?;
     Ok(())
 }

@@ -25,6 +25,20 @@ let chaos = chaos_analysis(&data);
 let trials = trial_analysis(&data, &Default::default());
 ```
 
+## Temporal + Statistics + Synchrony Tiers
+
+```rust
+use openentropy_core::{statistics_analysis, temporal_analysis_suite, synchrony_analysis};
+
+let stats = statistics_analysis(&data);
+let temporal = temporal_analysis_suite(&data);
+let sync = synchrony_analysis(&data_a, &data_b);
+
+println!("Ljung-Box p={:.4}", stats.ljung_box.p_value);
+println!("Drift slope={:.4}", temporal.drift.drift_slope);
+println!("NMI={:.4}", sync.mutual_info.normalized_mi);
+```
+
 ## Source-to-source Comparison
 
 ```rust

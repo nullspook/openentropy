@@ -162,6 +162,132 @@ pub(crate) fn erfc(x: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
+// Beta distribution functions
+// ---------------------------------------------------------------------------
+
+#[allow(dead_code)]
+fn beta_continued_fraction(a: f64, b: f64, x: f64) -> f64 {
+    let qab = a + b;
+    let qap = a + 1.0;
+    let qam = a - 1.0;
+
+    let mut c = 1.0;
+    let mut d = 1.0 - qab * x / qap;
+    if d.abs() < 1e-30 {
+        d = 1e-30;
+    }
+    d = 1.0 / d;
+    let mut h = d;
+
+    for m in 1..300 {
+        let mf = m as f64;
+        let m2 = 2.0 * mf;
+
+        let aa = mf * (b - mf) * x / ((qam + m2) * (a + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < 1e-30 {
+            d = 1e-30;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < 1e-30 {
+            c = 1e-30;
+        }
+        d = 1.0 / d;
+        h *= d * c;
+
+        let aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2));
+        d = 1.0 + aa * d;
+        if d.abs() < 1e-30 {
+            d = 1e-30;
+        }
+        c = 1.0 + aa / c;
+        if c.abs() < 1e-30 {
+            c = 1e-30;
+        }
+        d = 1.0 / d;
+        let delta = d * c;
+        h *= delta;
+
+        if (delta - 1.0).abs() < 1e-14 {
+            break;
+        }
+    }
+
+    h
+}
+
+#[allow(dead_code)]
+pub(crate) fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
+    if a <= 0.0 || b <= 0.0 {
+        return 0.0;
+    }
+    if x <= 0.0 {
+        return 0.0;
+    }
+    if x >= 1.0 {
+        return 1.0;
+    }
+
+    let log_bt = ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (1.0 - x).ln();
+    if log_bt < -700.0 {
+        return if x < (a + 1.0) / (a + b + 2.0) {
+            0.0
+        } else {
+            1.0
+        };
+    }
+    let bt = log_bt.exp();
+
+    if x < (a + 1.0) / (a + b + 2.0) {
+        (bt * beta_continued_fraction(a, b, x) / a).clamp(0.0, 1.0)
+    } else {
+        (1.0 - bt * beta_continued_fraction(b, a, 1.0 - x) / b).clamp(0.0, 1.0)
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn f_distribution_cdf(f: f64, df1: usize, df2: usize) -> f64 {
+    if df1 == 0 || df2 == 0 {
+        return 0.0;
+    }
+    if f <= 0.0 {
+        return 0.0;
+    }
+    if f.is_infinite() {
+        return 1.0;
+    }
+
+    let df1f = df1 as f64;
+    let df2f = df2 as f64;
+    let x = (df1f * f) / (df1f * f + df2f);
+    incomplete_beta(df1f / 2.0, df2f / 2.0, x)
+}
+
+#[allow(dead_code)]
+pub(crate) fn f_distribution_survival(f: f64, df1: usize, df2: usize) -> f64 {
+    (1.0 - f_distribution_cdf(f, df1, df2)).clamp(0.0, 1.0)
+}
+
+#[allow(dead_code)]
+pub(crate) fn t_distribution_cdf(t: f64, df: usize) -> f64 {
+    if df == 0 {
+        return 0.5;
+    }
+    if t == 0.0 {
+        return 0.5;
+    }
+    if t.is_infinite() {
+        return if t.is_sign_positive() { 1.0 } else { 0.0 };
+    }
+
+    let dff = df as f64;
+    let x = dff / (dff + t * t);
+    let ib = incomplete_beta(dff / 2.0, 0.5, x);
+
+    if t > 0.0 { 1.0 - 0.5 * ib } else { 0.5 * ib }
+}
+
+// ---------------------------------------------------------------------------
 // Linear regression
 // ---------------------------------------------------------------------------
 
@@ -320,5 +446,34 @@ mod tests {
     #[test]
     fn euclidean_distance_empty() {
         assert_eq!(euclidean_distance(&[], &[]), 0.0);
+    }
+
+    #[test]
+    fn incomplete_beta_known_values() {
+        assert!((incomplete_beta(2.0, 3.0, 0.5) - 0.6875).abs() < 0.001);
+        assert!((incomplete_beta(1.0, 1.0, 0.5) - 0.5).abs() < 0.001);
+        assert!((incomplete_beta(0.5, 0.5, 0.5) - 0.5).abs() < 0.005);
+        assert_eq!(incomplete_beta(2.0, 3.0, 0.0), 0.0);
+        assert_eq!(incomplete_beta(2.0, 3.0, 1.0), 1.0);
+    }
+
+    #[test]
+    fn f_distribution_cdf_known_values() {
+        assert!((f_distribution_cdf(3.0, 5, 10) - 0.9344).abs() < 0.005);
+        assert_eq!(f_distribution_cdf(0.0, 5, 10), 0.0);
+        assert!((f_distribution_cdf(1.0, 10, 10) - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn f_distribution_survival_known_values() {
+        assert!((f_distribution_survival(3.0, 5, 10) - 0.0656).abs() < 0.005);
+        assert_eq!(f_distribution_survival(0.0, 5, 10), 1.0);
+    }
+
+    #[test]
+    fn t_distribution_cdf_known_values() {
+        assert!((t_distribution_cdf(2.228, 10) - 0.975).abs() < 0.005);
+        assert!((t_distribution_cdf(0.0, 10) - 0.5).abs() < 0.001);
+        assert!((t_distribution_cdf(-2.228, 10) - 0.025).abs() < 0.005);
     }
 }

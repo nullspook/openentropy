@@ -39,9 +39,35 @@ pub use trials::{
     stouffer_combine, trial_analysis,
 };
 pub use chaos::{
-    BiEntropyResult, ChaosAnalysis, CorrelationDimResult, EpiplexityResult, HurstResult,
-    LyapunovResult, bientropy, chaos_analysis, correlation_dimension, epiplexity,
-    hurst_exponent, lyapunov_exponent,
+    BiEntropyResult, BootstrapHurstResult, ChaosAnalysis, CorrelationDimResult, DfaResult,
+    EpiplexityResult, HurstResult, LyapunovResult, RollingHurstResult, RqaResult,
+    SampleEntropyResult, bientropy, bootstrap_hurst, bootstrap_hurst_default,
+    chaos_analysis, correlation_dimension, dfa, dfa_default, epiplexity,
+    hurst_exponent, lyapunov_exponent, rolling_hurst, rolling_hurst_default,
+    rqa, rqa_default, sample_entropy, sample_entropy_default,
+};
+pub use analysis::{
+    AndersonDarlingResult, ApproxEntropyResult, PermutationEntropyResult,
+    anderson_darling, approximate_entropy, approximate_entropy_default,
+    permutation_entropy, permutation_entropy_default,
+};
+pub use statistics::{
+    StatisticsAnalysis, CramerVonMisesResult, LjungBoxResult, GapTestResult,
+    AnovaResult, KruskalWallisResult, LeveneResult, PowerResult, MultipleCorrectionResult,
+    statistics_analysis, cramer_von_mises, ljung_box, gap_test,
+    anova, kruskal_wallis, levene_test, power_analysis,
+    bonferroni_correction, holm_bonferroni_correction,
+};
+pub use temporal::{
+    TemporalAnalysisSuite, ChangePointResult, AnomalyDetectionResult, BurstResult,
+    ShiftResult, DriftResult, StabilityResult,
+    temporal_analysis_suite, change_point_detection, anomaly_detection,
+    burst_detection, shift_detection, temporal_drift, inter_session_stability,
+};
+pub use synchrony::{
+    SynchronyAnalysis, MutualInfoResult, PhaseCoherenceResult, CrossSyncResult,
+    GlobalEventResult, synchrony_analysis, mutual_information, phase_coherence,
+    cross_sync, global_event_detection,
 };
 pub use dispatcher::{
     AnalysisConfig, AnalysisProfile, AnalysisReport, SourceReport, VerdictSummary, analyze,
@@ -354,13 +380,14 @@ println!("Stationary: {}", analysis.stationarity.is_stationary);
 
 ## Chaos Theory Analysis (`openentropy_core::chaos`)
 
-Distinguish true randomness from deterministic chaos using five independent metrics.
+Distinguish true randomness from deterministic chaos with core and extended metrics.
 See [Chaos Theory Analysis](/openentropy/concepts/analysis-chaos/)
 for interpretation guides and verdict thresholds.
 
 ### `chaos_analysis(data: &[u8]) -> ChaosAnalysis`
 
-Run the full chaos analysis battery on a byte stream. Returns a `ChaosAnalysis` containing Hurst exponent, Lyapunov exponent, correlation dimension, BiEntropy, and epiplexity.
+Run the core chaos battery on a byte stream. Returns a `ChaosAnalysis` containing
+Hurst exponent, Lyapunov exponent, correlation dimension, BiEntropy, and epiplexity.
 
 ```rust
 use openentropy_core::chaos::chaos_analysis;
@@ -383,9 +410,56 @@ println!("Compression ratio={:.4}", result.epiplexity.compression_ratio);
 | `bientropy(data)` | `BiEntropyResult` | Binary entropy derivative (BiEn, TBiEn) |
 | `epiplexity(data)` | `EpiplexityResult` | Compression-ratio complexity metric |
 
+Extended chaos functions:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `sample_entropy(data, m, r)` | `SampleEntropyResult` | Sample entropy |
+| `dfa(data, order)` | `DfaResult` | Detrended fluctuation analysis |
+| `rqa(data, dim, delay, threshold)` | `RqaResult` | Recurrence quantification |
+| `rolling_hurst(data, window, step)` | `RollingHurstResult` | Sliding Hurst estimate |
+| `bootstrap_hurst(data, n_bootstrap)` | `BootstrapHurstResult` | Hurst uncertainty/p-value |
+
 ### Interpreting results
 
 For **true random** data, expect: Hurst H ≈ 0.5, Lyapunov λ > 0 (sensitive dependence), high correlation dimension, BiEntropy near maximum, compression ratio near 1.0. See the [Verdict System](/openentropy/concepts/analysis-verdicts/) for automated pass/fail classification of each metric.
+
+## Statistics Analysis (`openentropy_core::statistics`)
+
+Core one-call entry:
+
+```rust
+use openentropy_core::statistics_analysis;
+let stats = statistics_analysis(&data);
+println!("CvM p={:.4}, Ljung-Box p={:.4}", stats.cramer_von_mises.p_value, stats.ljung_box.p_value);
+```
+
+Additional group-level helpers are exported: `anova`, `kruskal_wallis`, `levene_test`,
+`power_analysis`, `bonferroni_correction`, `holm_bonferroni_correction`.
+
+## Temporal Analysis (`openentropy_core::temporal`)
+
+Core one-call entry:
+
+```rust
+use openentropy_core::temporal_analysis_suite;
+let temporal = temporal_analysis_suite(&data);
+println!("drift slope={:.4}", temporal.drift.drift_slope);
+```
+
+Individual functions include `change_point_detection`, `anomaly_detection`, `burst_detection`,
+`shift_detection`, `temporal_drift`, and `inter_session_stability`.
+
+## Synchrony Analysis (`openentropy_core::synchrony`)
+
+Pairwise and multi-stream entries:
+
+```rust
+use openentropy_core::{synchrony_analysis, global_event_detection};
+let pair = synchrony_analysis(&data_a, &data_b);
+let events = global_event_detection(&[&data_a, &data_b, &data_c]);
+println!("NMI={:.4}", pair.mutual_info.normalized_mi);
+```
 
 ## Unified Analysis Dispatcher (`openentropy_core::dispatcher`)
 
@@ -424,17 +498,23 @@ for source in &report.sources {
 | `forensic` | `bool` | Run `full_analysis` (autocorrelation, spectral, bias, distribution, stationarity, runs) |
 | `entropy` | `bool` | Run `min_entropy_estimate` (detailed entropy breakdown) |
 | `chaos` | `bool` | Run `chaos_analysis` (Hurst, Lyapunov, correlation dimension, BiEntropy, epiplexity) |
+| `chaos_extended` | `bool` | Run extended chaos metrics (SampEn/ApEn/DFA/RQA/Hurst variants/PermEn/AD) |
+| `temporal` | `bool` | Run temporal suite (change-point/anomaly/burst/shift/drift) |
+| `statistics` | `bool` | Run statistics suite (CvM/Ljung-Box/gap) |
+| `synchrony` | `bool` | Run synchrony suite (pairwise + global-event checks) |
 | `trials` | `Option<TrialConfig>` | Run `trial_analysis` with given config; `None` = skip |
 | `cross_correlation` | `bool` | Run `cross_correlation_matrix` when 2+ sources present |
 
 ### `AnalysisProfile` presets
 
-| Profile | Forensic | Entropy | Chaos | Trials | Cross-Correlation |
-|---------|----------|---------|-------|--------|-------------------|
-| `Quick` | ✓ | — | — | — | — |
-| `Standard` | ✓ | — | — | — | — |
-| `Deep` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `Security` | ✓ | ✓ | — | — | — |
+| Profile | Forensic | Entropy | Chaos | Chaos Extended | Temporal | Statistics | Synchrony | Trials | Cross-Correlation |
+|---------|----------|---------|-------|----------------|----------|------------|-----------|--------|-------------------|
+| `Quick` | ✓ | — | — | — | — | — | — | — | — |
+| `Standard` | ✓ | — | — | — | — | — | — | — | — |
+| `Deep` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | —* | ✓ | ✓ |
+| `Security` | ✓ | ✓ | — | — | — | — | — | — | — |
+
+`*` Synchrony is explicit in CLI because it requires 2+ streams.
 
 ### Custom config
 
@@ -446,6 +526,10 @@ let config = AnalysisConfig {
     forensic: true,
     entropy: false,
     chaos: true,
+    chaos_extended: false,
+    temporal: false,
+    statistics: false,
+    synchrony: false,
     trials: Some(TrialConfig::default()),
     cross_correlation: false,
 };

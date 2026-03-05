@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo_with_text.png" alt="openentropy logo" width="320">
+<img src="assets/logo_no_text.png" alt="openentropy logo" width="220">
 
 # openentropy
 
@@ -145,6 +145,16 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 
 ---
 
+## Acknowledgments
+
+The expanded statistical analysis roadmap and method inventory were informed by:
+
+- [vikingdude81/qrng-analysis-toolkit](https://github.com/vikingdude81/qrng-analysis-toolkit)
+
+We appreciate the open-source work that helped shape this comparative QRNG/PRNG analysis surface.
+
+---
+
 ## Entropy Sources
 
 63 sources across 13 mechanism-based categories:
@@ -199,7 +209,7 @@ Stouffer composition, calibration gating) are documented in
 
 ```toml
 [dependencies]
-openentropy-core = "0.10"
+openentropy-core = "0.12"
 ```
 
 ```rust
