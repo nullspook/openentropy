@@ -39,7 +39,7 @@ openentropy stream --conditioning sha256 --format raw --bytes 1024
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Entropy Breakdown](/openentropy/concepts/analysis-entropy/)
 - [Conditioning](/openentropy/concepts/conditioning/)
 - [Troubleshooting](/openentropy/guides/troubleshooting/)

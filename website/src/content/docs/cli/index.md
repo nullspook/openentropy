@@ -56,7 +56,7 @@ Profiles are convenience presets that configure multiple flags at once. Choose t
 
 For detailed explanations of each analysis tier (forensic, entropy, chaos core/extended,
 trials, cross-correlation, temporal, statistics, synchrony), interpretation guides, and the verdict system, see
-[Analysis System](/openentropy/concepts/analysis/).
+[Choose an Analysis Path](/openentropy/concepts/analysis-path/).
 
 **Security engineers** use the `security` profile to validate entropy quality and seed CSPRNGs:
 ```bash

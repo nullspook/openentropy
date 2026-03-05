@@ -7,6 +7,18 @@ Temporal analysis tracks how a source changes across the stream.
 
 Implemented in `openentropy_core::temporal`.
 
+> **What it is:** A time-structure analysis for drift, shifts, bursts, and anomalies.
+>
+> **Use it for:** Diagnosing instability over time that aggregate metrics can hide.
+>
+> **Input shape:** Usually one byte stream; stability checks use multiple session streams.
+
+## Use this when
+
+- You suspect drift, bursts, or regime shifts over time.
+- Forensic metrics look unstable across repeated runs.
+- You need change-point or anomaly windows, not just aggregate scores.
+
 ## Methods
 
 - `change_point_detection` / `_default`: significant mean shifts between adjacent segments
@@ -46,5 +58,5 @@ let stability = inter_session_stability(&[&data_a, &data_b, &data_c]);
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Statistics Analysis](/openentropy/concepts/analysis-statistics/)

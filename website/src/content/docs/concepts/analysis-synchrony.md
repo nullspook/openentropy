@@ -7,6 +7,18 @@ Synchrony analysis evaluates dependence between two or more entropy streams.
 
 Implemented in `openentropy_core::synchrony`.
 
+> **What it is:** A cross-stream coupling analysis for shared information and event synchronization.
+>
+> **Use it for:** Detecting whether two or more streams are influenced by common causes.
+>
+> **Input shape:** Two streams for pair methods; three or more for global event detection.
+
+## Use this when
+
+- You have 2+ streams and want coupling/synchronization evidence.
+- You suspect shared external events affecting multiple sources at once.
+- Cross-correlation alone is insufficient and you need MI/coherence/event overlap.
+
 ## Methods
 
 - `mutual_information`: shared-information estimate with normalized MI
@@ -45,5 +57,5 @@ let events = global_event_detection(&[&data_a, &data_b, &data_c]);
 
 ## Related
 
-- [Analysis System](/openentropy/concepts/analysis/)
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/)
 - [Cross-Correlation](/openentropy/concepts/analysis-cross-correlation/)

@@ -88,4 +88,4 @@ For complete API documentation including all crates, types, and methods, see the
 
 - [Rust Quick Reference](/openentropy/rust-sdk/quick-reference/) — most-used calls and common workflows
 - [Rust Analysis Workflows](/openentropy/rust-sdk/analysis/) — dispatcher, forensic, chaos, trials, and comparison patterns
-- [Analysis System](/openentropy/concepts/analysis/) — interpretation guides and verdict model
+- [Choose an Analysis Path](/openentropy/concepts/analysis-path/) — interpretation guides and verdict model
