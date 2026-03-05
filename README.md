@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo_with_text.png" alt="openentropy logo" width="320">
+<img src="assets/logo_no_text.png" alt="openentropy logo" width="220">
 
 # openentropy
 
@@ -142,6 +142,16 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 | [Examples](examples/) | Rust and Python code examples |
 | [Troubleshooting](https://amenti-labs.github.io/openentropy/guides/troubleshooting/) | Common issues and fixes |
 | [Security](SECURITY.md) | Threat model and responsible disclosure |
+
+---
+
+## Acknowledgments
+
+The expanded statistical analysis roadmap and method inventory were informed by:
+
+- [vikingdude81/qrng-analysis-toolkit](https://github.com/vikingdude81/qrng-analysis-toolkit)
+
+We appreciate the open-source work that helped shape this comparative QRNG/PRNG analysis surface.
 
 ---
 

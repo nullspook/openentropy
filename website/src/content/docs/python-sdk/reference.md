@@ -94,6 +94,9 @@ openentropy.stationarity_test
 openentropy.runs_analysis
 openentropy.cross_correlation_matrix
 openentropy.pearson_correlation
+openentropy.approximate_entropy
+openentropy.permutation_entropy
+openentropy.anderson_darling
 
 # Chaos
 openentropy.chaos_analysis
@@ -102,6 +105,39 @@ openentropy.lyapunov_exponent
 openentropy.correlation_dimension
 openentropy.bientropy
 openentropy.epiplexity
+openentropy.sample_entropy
+openentropy.dfa_analysis
+openentropy.rqa_analysis
+openentropy.bootstrap_hurst
+openentropy.rolling_hurst
+
+# Statistics
+openentropy.statistics_analysis
+openentropy.cramer_von_mises
+openentropy.ljung_box
+openentropy.gap_test
+openentropy.anova
+openentropy.kruskal_wallis
+openentropy.levene_test
+openentropy.power_analysis
+openentropy.bonferroni_correction
+openentropy.holm_bonferroni_correction
+
+# Temporal
+openentropy.change_point_detection
+openentropy.anomaly_detection
+openentropy.burst_detection
+openentropy.shift_detection
+openentropy.temporal_drift
+openentropy.temporal_analysis_suite
+openentropy.inter_session_stability
+
+# Synchrony
+openentropy.mutual_information
+openentropy.phase_coherence
+openentropy.cross_sync
+openentropy.synchrony_analysis
+openentropy.global_event_detection
 
 # Dispatcher
 openentropy.analyze
@@ -346,6 +382,66 @@ epi = epiplexity(data)
 | `correlation_dimension(data)` | `dict` | Correlation dimension (high D₂ = random) |
 | `bientropy(data)` | `dict` | BiEntropy and TBiEntropy metrics |
 | `epiplexity(data)` | `dict` | Compression-based complexity |
+
+Extended chaos methods:
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `sample_entropy(data)` | `dict` | Sample entropy (SampEn) |
+| `dfa_analysis(data)` | `dict` | Detrended fluctuation analysis |
+| `rqa_analysis(data)` | `dict` | Recurrence quantification analysis |
+| `bootstrap_hurst(data)` | `dict` | Bootstrap Hurst uncertainty |
+| `rolling_hurst(data)` | `dict` | Sliding-window Hurst tracking |
+
+## Statistics Analysis
+
+```python
+from openentropy import statistics_analysis, cramer_von_mises, ljung_box, gap_test
+
+stats = statistics_analysis(data)
+cvm = cramer_von_mises(data)
+lb = ljung_box(data)
+gap = gap_test(data)
+```
+
+Group-level tests and corrections:
+
+```python
+from openentropy import (
+    anova,
+    kruskal_wallis,
+    levene_test,
+    power_analysis,
+    bonferroni_correction,
+    holm_bonferroni_correction,
+)
+```
+
+## Temporal Analysis
+
+```python
+from openentropy import (
+    change_point_detection,
+    anomaly_detection,
+    burst_detection,
+    shift_detection,
+    temporal_drift,
+    temporal_analysis_suite,
+    inter_session_stability,
+)
+```
+
+## Synchrony Analysis
+
+```python
+from openentropy import (
+    mutual_information,
+    phase_coherence,
+    cross_sync,
+    synchrony_analysis,
+    global_event_detection,
+)
+```
 
 ## Unified Analysis Dispatcher
 

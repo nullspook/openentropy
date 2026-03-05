@@ -17,12 +17,12 @@ Value flags (for example `--samples`, `--conditioning`) override profile default
 Boolean flags are additive (OR semantics): profile-enabled booleans stay enabled.
 Profiles are available on `analyze`, `sessions`, and `compare`.
 
-| Profile | Audience | Samples | Conditioning | Entropy | NIST Report | Cross-Corr | Trials | Chaos |
-|---------|----------|---------|-------------|---------|-------------|------------|--------|-------|
-| `quick` | Any | 10,000 | raw | — | — | — | — | — |
-| `standard` | Any (default) | 50,000 | raw | — | — | — | — | — |
-| `deep` | Research | 100,000 | raw | ✓ | — | ✓ | ✓ | ✓ |
-| `security` | Security | 50,000 | sha256 | ✓ | ✓ | — | — | — |
+| Profile | Audience | Samples | Conditioning | Entropy | NIST Report | Cross-Corr | Trials | Chaos (Core) | Temporal | Statistics | Chaos (Extended) |
+|---------|----------|---------|-------------|---------|-------------|------------|--------|---------------|----------|------------|------------------|
+| `quick` | Any | 10,000 | raw | — | — | — | — | — | — | — | — |
+| `standard` | Any (default) | 50,000 | raw | — | — | — | — | — | — | — | — |
+| `deep` | Research | 100,000 | raw | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `security` | Security | 50,000 | sha256 | ✓ | ✓ | — | — | — | — | — | — |
 
 The table reflects `analyze` defaults. `sessions` uses the profile's analysis
 toggles (`entropy`, `trials`, and whether analysis is implied). `compare` uses
@@ -149,9 +149,10 @@ curl "http://localhost:8080/pool/status?telemetry=true"
 
 ## `analyze` — Statistical source analysis
 
-Run statistical analysis on entropy sources. The analysis system includes
-five categories — forensic, entropy breakdown, chaos theory, trial analysis,
-and cross-correlation — controlled by profiles or individual flags. See
+Run statistical analysis on entropy sources. The analysis system is tiered:
+forensic baseline plus optional entropy breakdown, chaos core/extended,
+trial analysis, cross-correlation, temporal, statistics, and synchrony,
+controlled by profiles or individual flags. See
 [Analysis System](/openentropy/concepts/analysis/) for detailed explanations
 of each category, interpretation guides, and verdict thresholds.
 
@@ -159,14 +160,16 @@ of each category, interpretation guides, and verdict thresholds.
 openentropy analyze                          # standard forensic analysis
 openentropy analyze --profile quick          # fast 10K-sample check
 openentropy analyze --profile security       # NIST battery + entropy + sha256
-openentropy analyze --profile deep           # 100K samples + entropy + cross-corr
+openentropy analyze --profile deep           # 100K samples + entropy + cross-corr + core/extended tiers
 openentropy analyze --profile deep --report  # deep forensic + NIST battery
 openentropy analyze --entropy                # include min-entropy breakdown
 openentropy analyze --cross-correlation --output analysis.json
 openentropy analyze --telemetry --output analysis.json
 openentropy analyze --qcicada-mode sha256 --output analysis.json
-openentropy analyze --chaos                          # chaos theory analysis (Hurst, Lyapunov, D₂, BiEntropy, epiplexity)
-openentropy analyze --profile deep --chaos           # deep profile already enables chaos
+openentropy analyze --chaos                          # chaos core tier
+openentropy analyze --chaos-extended                 # chaos extended tier (SampEn/ApEn/DFA/RQA/Hurst variants)
+openentropy analyze --temporal --statistics          # temporal/statistics tiers
+openentropy analyze --synchrony                      # synchrony tier (2+ sources required)
 ```
 
 ## `analyze --report` — NIST test battery

@@ -6,7 +6,14 @@ description: 'Distinguishing deterministic structure from random behavior'
 Chaos analysis helps distinguish genuinely random behavior from deterministic
 systems that only look random.
 
-Implemented in `openentropy_core::chaos`.
+Implemented in `openentropy_core::chaos` (core tier) and
+`openentropy_core::analysis` (extended entropy-complexity metrics).
+
+## Tiers
+
+- Core tier (`--chaos`): Hurst, Lyapunov, correlation dimension, BiEntropy, epiplexity
+- Extended tier (`--chaos-extended`): Sample entropy, Approximate entropy, DFA, RQA,
+  rolling/bootstrap Hurst, permutation entropy, Anderson-Darling
 
 ## Hurst Exponent
 
@@ -48,3 +55,14 @@ Compression-ratio complexity metric.
 
 - [Analysis System](/openentropy/concepts/analysis/)
 - [Verdict System](/openentropy/concepts/analysis-verdicts/)
+
+## Extended Methods
+
+- **Sample entropy (`sample_entropy`)**: irregularity/complexity estimator (SampEn)
+- **Approximate entropy (`approximate_entropy`)**: ApEn regularity metric
+- **DFA (`dfa`)**: long-range correlation estimate via detrended fluctuations
+- **RQA (`rqa`)**: recurrence structure and determinism metrics
+- **Rolling Hurst (`rolling_hurst`)**: local H estimate across windows
+- **Bootstrap Hurst (`bootstrap_hurst`)**: uncertainty intervals and surrogate p-value
+- **Permutation entropy (`permutation_entropy`)**: ordinal-pattern complexity
+- **Anderson-Darling (`anderson_darling`)**: distribution conformity test used in extended tier

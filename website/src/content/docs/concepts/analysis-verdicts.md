@@ -1,9 +1,10 @@
 ---
 title: 'Verdict System'
-description: 'PASS/WARN/FAIL thresholds for forensic and chaos metrics'
+description: 'PASS/WARN/FAIL thresholds for forensic, chaos, and advanced statistical metrics'
 ---
 
-Each source report includes automated verdicts for forensic and chaos metrics.
+Each source report includes automated verdicts for forensic, chaos, and selected
+extended statistical metrics.
 Verdicts are computed in `openentropy_core::verdict`.
 
 ## Verdict Values
@@ -33,6 +34,19 @@ Verdicts are computed in `openentropy_core::verdict`.
 | Correlation dimension | high | moderate | low |
 | BiEntropy | very high | high | low |
 | Compression | near incompressible | mildly compressible | compressible |
+
+## Extended Verdict Thresholds
+
+| Metric | PASS | WARN | FAIL |
+|--------|------|------|------|
+| Sample entropy | `> 1.0` | `0.5..=1.0` | `< 0.5` |
+| Approximate entropy | `> 1.0` | `0.5..=1.0` | `< 0.5` |
+| DFA alpha | `0.4 < α < 0.6` | `0.3..=0.7` | outside warn band |
+| RQA determinism | `< 0.1` | `<= 0.3` | `> 0.3` |
+| Permutation entropy | `> 0.95` | `0.8..=0.95` | `< 0.8` |
+| Anderson-Darling p-value | `> 0.05` | `0.01..=0.05` | `< 0.01` |
+| Cramer-von Mises p-value | `> 0.05` | `0.01..=0.05` | `< 0.01` |
+| Ljung-Box p-value | `> 0.05` | `0.01..=0.05` | `< 0.01` |
 
 ## Reading Results
 

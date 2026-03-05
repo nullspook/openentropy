@@ -1,0 +1,50 @@
+---
+title: 'Temporal Analysis'
+description: 'Detecting non-stationary behavior over time in entropy streams'
+---
+
+Temporal analysis tracks how a source changes across the stream.
+
+Implemented in `openentropy_core::temporal`.
+
+## Methods
+
+- `change_point_detection` / `_default`: significant mean shifts between adjacent segments
+- `anomaly_detection` / `_default`: outlier windows and anomaly rate
+- `burst_detection` / `_default`: high-intensity burst intervals
+- `shift_detection` / `_default`: windowed mean shifts with z-score threshold
+- `temporal_drift` / `_default`: trend slope and drift confidence over segments
+- `inter_session_stability`: cross-session consistency score
+- `temporal_analysis_suite`: one-call orchestrator for single-stream temporal checks
+
+## CLI
+
+```bash
+openentropy analyze --temporal
+openentropy analyze --profile deep
+```
+
+## Python SDK
+
+```python
+from openentropy import temporal_analysis_suite, temporal_drift, inter_session_stability
+
+suite = temporal_analysis_suite(data)
+drift = temporal_drift(data)
+stability = inter_session_stability([data_a, data_b, data_c])
+```
+
+## Rust SDK
+
+```rust
+use openentropy_core::{temporal_analysis_suite, temporal_drift, inter_session_stability};
+
+let suite = temporal_analysis_suite(&data);
+let drift = temporal_drift(&data, 10);
+let stability = inter_session_stability(&[&data_a, &data_b, &data_c]);
+```
+
+## Related
+
+- [Analysis System](/openentropy/concepts/analysis/)
+- [Statistics Analysis](/openentropy/concepts/analysis-statistics/)
