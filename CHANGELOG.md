@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.12.1 — 2026-03-09
+
+### Added
+
+- Added a shared core source-resolution helper so CLI-style convenience matching and SDK exact matching no longer drift across surfaces.
+- Added router-level HTTP contract tests for `/api/v1/random`, `/sources`, and `/pool/status`, including malformed query rejection and source-row schema checks.
+- Added README visibility for supported external QRNG hardware, including the `qcicada` source for the Crypta Labs QCicada USB QRNG.
+
+### Changed
+
+- Session recording now enforces a non-empty, declared source set across core, CLI, and Python bindings.
+- Session comparison now respects per-source session boundaries instead of flattening mixed-source recordings.
+- HTTP API contracts are now stricter and clearer:
+  - invalid `conditioning` and `type` values return `400`
+  - malformed query extraction returns JSON errors
+  - `length` consistently means bytes
+  - `/pool/status` uses `sources_healthy`
+  - `/sources` and `/pool/status` expose `autocorrelation`
+- Documentation, package metadata, and examples were aligned with implemented CLI, Python, and HTTP behavior.
+
+### Fixed
+
+- Fixed silent fallback behavior in the HTTP random endpoint for invalid request modes and out-of-range parameters.
+- Fixed Python `record()` and session-writing edge cases around empty sources, unknown sources, duplicates, invalid durations, and bounded recording duration.
+- Fixed `EntropyPool` timeout backoff handling so timed-out sources remain backed off even after late worker completion.
+- Fixed CI instability on macOS runners by making timeout/backoff tests assert semantics without relying on unrealistically tight scheduler timing.
+
 ## 0.12.0 — 2026-03-05
 
 ### Added
