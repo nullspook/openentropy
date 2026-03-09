@@ -43,7 +43,7 @@ openentropy stream --format hex --bytes 64
 openentropy monitor
 ```
 
-> By default, only fast sources (<2s) are used. Pass `all` as a positional argument to include slower sources (DNS, TCP, GPU, BLE).
+> By default, only fast sources (<2s) are used. Pass `--all` to include slower sources (DNS, TCP, GPU, BLE). The positional alias `all` is also accepted for compatibility.
 
 ### Python
 
@@ -131,7 +131,7 @@ Raw mode is what makes OpenEntropy useful for research. Most HWRNG APIs run DRBG
 
 | Doc | Description |
 |-----|-------------|
-| [Source Catalog](https://amenti-labs.github.io/openentropy/concepts/sources/) | All 63 entropy sources with physics explanations |
+| [Source Catalog](https://amenti-labs.github.io/openentropy/concepts/sources/) | Source catalog with physics explanations and platform notes |
 | [CLI Reference](https://amenti-labs.github.io/openentropy/cli/reference/) | Full command reference and examples |
 | [Conditioning](https://amenti-labs.github.io/openentropy/concepts/conditioning/) | Raw vs VonNeumann vs SHA-256 conditioning modes |
 | [Trial Analysis Methodology](https://amenti-labs.github.io/openentropy/concepts/trials/) | PEAR-style 200-bit trials, calibration gate, and references |
@@ -157,7 +157,7 @@ We appreciate the open-source work that helped shape this comparative QRNG/PRNG 
 
 ## Entropy Sources
 
-63 sources across 13 mechanism-based categories:
+The current source registry spans 13 mechanism-based categories; actual availability varies by platform:
 
 | Category | Count |
 |----------|:-----:|

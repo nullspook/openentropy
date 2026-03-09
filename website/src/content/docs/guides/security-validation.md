@@ -25,7 +25,7 @@ openentropy analyze --profile security --output audit.md
 Run at least a few independent captures to avoid one-off conclusions:
 
 ```bash
-openentropy record all --duration 1m --analyze
+openentropy record --all --duration 1m --analyze
 openentropy sessions sessions/<id> --profile security
 ```
 

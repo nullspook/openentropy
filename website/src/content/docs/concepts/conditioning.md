@@ -46,7 +46,7 @@ Raw mode returns XOR-combined source bytes with **no conditioning at all** — n
 | Rust API | `pool.get_raw_bytes(n)` |
 | CLI | `openentropy stream --conditioning raw` |
 | CLI | `openentropy stream --fifo <path> --conditioning raw` |
-| HTTP API | `GET /api/v1/random?length=N&type=hex&raw=true` (requires `--allow-raw` flag) |
+| HTTP API | `GET /api/v1/random?length=32&type=hex16&raw=true` (requires `--allow-raw` flag; `hex16` uses even byte lengths) |
 | Python SDK | `pool.get_raw_bytes(n)` |
 
 The HTTP server requires the `--allow-raw` startup flag to enable raw mode — this prevents accidental exposure of unconditioned entropy.
@@ -81,7 +81,7 @@ The refactored design enforces a clean boundary: sources produce raw samples, th
 | Feature | OpenEntropy | ANU QRNG | Outshift QRNG | Linux `/dev/urandom` |
 |---------|-----------------|----------|---------------|---------------------|
 | Raw output available | ✅ Yes | ❌ No | ❌ No | ❌ No |
-| Source diversity | 63 sources | 1 (vacuum fluctuation) | 1 (superconducting) | ~5 (interrupts, etc.) |
+| Source diversity | 60+ sources (registry; availability varies by platform) | 1 (vacuum fluctuation) | 1 (superconducting) | ~5 (interrupts, etc.) |
 | Conditioning visible | ✅ Optional, documented | ❌ Opaque | ❌ DRBG post-processing | ❌ ChaCha20 CSPRNG |
 | Self-hosted | ✅ Local binary | ❌ Cloud API | ❌ Cloud API | ✅ Kernel |
 | Statistical tests | ✅ Built-in NIST SP 800-22 | ❌ | ❌ | ❌ |

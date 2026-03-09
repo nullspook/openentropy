@@ -1,8 +1,8 @@
 """Tests for openentropy PyO3 bindings.
 
-Covers all 21 exported functions with at least 2 tests each:
-  - Happy path: valid data, assert return type and key presence
-  - Edge case: empty/minimal input, assert no crash
+Covers the high-traffic binding surface with happy-path and edge-case checks:
+  - Valid data returns the expected Python types and key fields
+  - Empty/minimal inputs do not crash and return structured results
 
 NOTE: These tests require `maturin develop` to have been run first.
 All test data uses os.urandom() — no hardware entropy sources needed.
@@ -10,6 +10,7 @@ All test data uses os.urandom() — no hardware entropy sources needed.
 
 import math
 import os
+import time
 
 import pytest
 
@@ -632,6 +633,19 @@ class TestRecord:
         with pytest.raises(Exception, match="already finished"):
             writer.finish()
 
+    def test_session_writer_rejects_empty_sources(self, tmp_path):
+        with pytest.raises(ValueError, match="at least one source"):
+            SessionWriter([], str(tmp_path), conditioning="raw")
+
+    def test_session_writer_rejects_duplicate_sources(self, tmp_path):
+        with pytest.raises(ValueError, match="duplicate source"):
+            SessionWriter(["dup_source", "dup_source"], str(tmp_path), conditioning="raw")
+
+    def test_session_writer_rejects_undeclared_sample_source(self, tmp_path):
+        writer = SessionWriter(["declared"], str(tmp_path), conditioning="raw")
+        with pytest.raises(ValueError, match="was not declared"):
+            writer.write_sample("undeclared", b"\x01\x02\x03", b"\x01\x02\x03")
+
     def test_record_returns_dict(self, tmp_path):
         from openentropy import EntropyPool
 
@@ -648,6 +662,88 @@ class TestRecord:
         )
         assert isinstance(result, dict)
         assert "id" in result
+
+    def test_record_rejects_negative_duration(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+
+        with pytest.raises(ValueError, match="duration_secs"):
+            record(
+                pool,
+                sources,
+                duration_secs=-1.0,
+                conditioning="raw",
+                output_dir=str(tmp_path),
+            )
+
+    def test_record_rejects_empty_sources(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+
+        with pytest.raises(ValueError, match="at least one source"):
+            record(
+                pool,
+                [],
+                duration_secs=0.5,
+                conditioning="raw",
+                output_dir=str(tmp_path),
+            )
+
+    def test_record_rejects_unknown_sources(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+
+        with pytest.raises(ValueError, match="unknown source name"):
+            record(
+                pool,
+                ["definitely_not_a_source"],
+                duration_secs=0.5,
+                conditioning="raw",
+                output_dir=str(tmp_path),
+            )
+
+    def test_record_deduplicates_sources(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()[:1]]
+        if not sources:
+            pytest.skip("no sources available")
+
+        result = record(
+            pool,
+            [sources[0], sources[0]],
+            duration_secs=0.2,
+            conditioning="raw",
+            output_dir=str(tmp_path),
+        )
+        assert result["sources"] == [sources[0]]
+        assert list(result["samples_per_source"].keys()) == [sources[0]]
+
+    def test_record_respects_requested_duration(self, tmp_path):
+        from openentropy import EntropyPool
+
+        pool = EntropyPool.auto()
+        sources = [s["name"] for s in pool.sources()]
+        if not sources:
+            pytest.skip("no sources available")
+
+        started = time.monotonic()
+        record(
+            pool,
+            sources,
+            duration_secs=1.0,
+            conditioning="raw",
+            output_dir=str(tmp_path),
+        )
+        elapsed = time.monotonic() - started
+        assert elapsed < 1.6, f"record() exceeded duration budget: {elapsed:.2f}s"
 
 
 # ---------------------------------------------------------------------------

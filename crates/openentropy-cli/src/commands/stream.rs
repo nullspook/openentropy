@@ -28,13 +28,15 @@ fn run_stdout(args: &StreamArgs) {
     } else {
         4096
     };
+    let all_sources = super::requests_all_sources(&args.positional, args.all);
 
     // Decide: single-source direct mode vs pool mode
-    let use_pool = args.pool || args.all || args.positional.is_empty() || args.positional.len() > 1;
+    let use_pool =
+        args.pool || all_sources || args.positional.is_empty() || args.positional.len() > 1;
 
     if use_pool {
         // Pool mode: build pool from positional args, --all, or default fast sources
-        let source_filter = if args.all {
+        let source_filter = if all_sources {
             Some("all".to_string())
         } else if !args.positional.is_empty() {
             Some(args.positional.join(","))
@@ -130,7 +132,7 @@ fn run_pool_stdout(
 }
 
 fn run_fifo(path: &str, args: &StreamArgs) {
-    let source_filter = if args.all {
+    let source_filter = if super::requests_all_sources(&args.positional, args.all) {
         Some("all".to_string())
     } else if !args.positional.is_empty() {
         Some(args.positional.join(","))

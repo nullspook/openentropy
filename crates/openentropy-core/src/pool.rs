@@ -18,6 +18,8 @@ use sha2::{Digest, Sha256};
 use crate::conditioning::{quick_autocorrelation_lag1, quick_min_entropy, quick_shannon};
 use crate::source::{EntropySource, SourceState};
 
+const SOURCE_TIMEOUT_BACKOFF_SECS: u64 = 30;
+
 /// Thread-safe multi-source entropy pool.
 pub struct EntropyPool {
     sources: Vec<Arc<Mutex<SourceState>>>,
@@ -154,7 +156,6 @@ impl EntropyPool {
                 let tx = tx.clone();
                 let src = Arc::clone(src);
                 let in_flight = Arc::clone(&self.in_flight);
-                let backoff = Arc::clone(&self.backoff_until);
 
                 std::thread::spawn(move || {
                     let data = Self::collect_one_n(&src, n_samples);
@@ -162,8 +163,6 @@ impl EntropyPool {
                         let mut in_flight = in_flight.lock().unwrap();
                         in_flight.remove(&idx);
                     }
-                    let mut bo = backoff.lock().unwrap();
-                    bo.remove(&idx);
                     let _ = tx.send((idx, data));
                 });
             }
@@ -215,7 +214,7 @@ impl EntropyPool {
         }
 
         // Back off any sources that did not respond in time.
-        let backoff_for = Duration::from_secs(30);
+        let backoff_for = Duration::from_secs(SOURCE_TIMEOUT_BACKOFF_SECS);
         let timeout_mark = Instant::now() + backoff_for;
         for idx in scheduled {
             if received.contains(&idx) {
@@ -329,6 +328,159 @@ impl EntropyPool {
         let n = results.len();
         self.buffer.lock().unwrap().extend_from_slice(&results);
         n
+    }
+
+    /// Collect raw bytes from selected sources while preserving source boundaries.
+    ///
+    /// A single shared timeout budget is applied across the whole sweep, so
+    /// callers can bound wall-clock latency even when many slow sources are enabled.
+    #[doc(hidden)]
+    pub fn collect_enabled_raw_n(
+        &self,
+        enabled_names: &[String],
+        timeout_secs: f64,
+        n_samples: usize,
+    ) -> HashMap<String, Vec<u8>> {
+        let timeout = Duration::from_secs_f64(timeout_secs.max(0.0));
+        if timeout.is_zero() || n_samples == 0 {
+            return HashMap::new();
+        }
+
+        let now = Instant::now();
+        let mut to_launch: Vec<(usize, Arc<Mutex<SourceState>>)> = Vec::new();
+        let mut source_names = HashMap::new();
+
+        for (idx, ss_mutex) in self.sources.iter().enumerate() {
+            let source_name = {
+                let ss = ss_mutex.lock().unwrap();
+                let name = ss.source.info().name;
+                if !enabled_names.iter().any(|enabled| enabled == name) {
+                    continue;
+                }
+                name.to_string()
+            };
+
+            let in_backoff = {
+                let backoff = self.backoff_until.lock().unwrap();
+                backoff.get(&idx).is_some_and(|until| now < *until)
+            };
+            if in_backoff {
+                continue;
+            }
+
+            {
+                let mut in_flight = self.in_flight.lock().unwrap();
+                if in_flight.contains(&idx) {
+                    continue;
+                }
+                in_flight.insert(idx);
+            }
+
+            source_names.insert(idx, source_name);
+            to_launch.push((idx, Arc::clone(ss_mutex)));
+        }
+
+        if to_launch.is_empty() {
+            return HashMap::new();
+        }
+
+        let max_concurrent = num_cpus().min(16);
+        let (tx, rx) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
+        let mut results = HashMap::new();
+        let mut received = HashSet::new();
+        let mut scheduled = Vec::new();
+        let sweep_deadline = Instant::now()
+            .checked_add(timeout)
+            .unwrap_or_else(Instant::now);
+
+        'batches: for chunk in to_launch.chunks(max_concurrent) {
+            if sweep_deadline
+                .saturating_duration_since(Instant::now())
+                .is_zero()
+            {
+                break;
+            }
+
+            let chunk_indices: HashSet<usize> = chunk.iter().map(|&(idx, _)| idx).collect();
+            for &(idx, ref src) in chunk {
+                scheduled.push(idx);
+
+                let tx = tx.clone();
+                let src = Arc::clone(src);
+                let in_flight = Arc::clone(&self.in_flight);
+
+                std::thread::spawn(move || {
+                    let data = Self::collect_one_n(&src, n_samples);
+                    {
+                        let mut in_flight = in_flight.lock().unwrap();
+                        in_flight.remove(&idx);
+                    }
+                    let _ = tx.send((idx, data));
+                });
+            }
+
+            let mut batch_done = 0;
+            while batch_done < chunk.len() {
+                let remaining = sweep_deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    break 'batches;
+                }
+                match rx.recv_timeout(remaining) {
+                    Ok((idx, data)) => {
+                        received.insert(idx);
+                        results.insert(idx, data);
+                        if chunk_indices.contains(&idx) {
+                            batch_done += 1;
+                        }
+                    }
+                    Err(_) => break 'batches,
+                }
+            }
+        }
+        drop(tx);
+
+        while received.len() < scheduled.len() {
+            let remaining = sweep_deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            match rx.recv_timeout(remaining.min(Duration::from_millis(50))) {
+                Ok((idx, data)) => {
+                    received.insert(idx);
+                    results.insert(idx, data);
+                }
+                Err(_) => break,
+            }
+        }
+
+        let backoff_for = Duration::from_secs(SOURCE_TIMEOUT_BACKOFF_SECS);
+        let timeout_mark = Instant::now() + backoff_for;
+        for idx in scheduled {
+            if received.contains(&idx) {
+                continue;
+            }
+
+            {
+                let mut bo = self.backoff_until.lock().unwrap();
+                bo.insert(idx, timeout_mark);
+            }
+
+            if let Ok(mut ss) = self.sources[idx].try_lock() {
+                ss.failures += 1;
+                ss.healthy = false;
+            }
+        }
+
+        let mut raw_by_source = HashMap::new();
+        for (idx, data) in results {
+            if data.is_empty() {
+                continue;
+            }
+            if let Some(source_name) = source_names.remove(&idx) {
+                raw_by_source.insert(source_name, data);
+            }
+        }
+        raw_by_source
     }
 
     fn collect_one_n(ss_mutex: &Arc<Mutex<SourceState>>, n_samples: usize) -> Vec<u8> {
@@ -800,6 +952,45 @@ mod tests {
         }
     }
 
+    struct SlowSource {
+        info: SourceInfo,
+        delay: Duration,
+        value: u8,
+    }
+
+    impl SlowSource {
+        fn new(name: &'static str, delay: Duration, value: u8) -> Self {
+            Self {
+                info: SourceInfo {
+                    name,
+                    description: "slow mock",
+                    physics: "delayed deterministic test data",
+                    category: SourceCategory::System,
+                    platform: Platform::Any,
+                    requirements: &[],
+                    entropy_rate_estimate: 1.0,
+                    composite: false,
+                    is_fast: false,
+                },
+                delay,
+                value,
+            }
+        }
+    }
+
+    impl EntropySource for SlowSource {
+        fn info(&self) -> &SourceInfo {
+            &self.info
+        }
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn collect(&self, n_samples: usize) -> Vec<u8> {
+            std::thread::sleep(self.delay);
+            vec![self.value; n_samples]
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Pool creation tests
     // -----------------------------------------------------------------------
@@ -872,6 +1063,83 @@ mod tests {
         let enabled = vec!["nonexistent".to_string()];
         let n = pool.collect_enabled(&enabled);
         assert_eq!(n, 0, "No sources should match");
+    }
+
+    #[test]
+    fn test_collect_enabled_raw_n_preserves_source_boundaries() {
+        let mut pool = EntropyPool::new(Some(b"test"));
+        pool.add_source(Box::new(MockSource::new("alpha", vec![1, 2, 3])));
+        pool.add_source(Box::new(MockSource::new("beta", vec![9, 8, 7])));
+
+        let enabled = vec!["alpha".to_string(), "beta".to_string()];
+        let results = pool.collect_enabled_raw_n(&enabled, 1.0, 4);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results.get("alpha").unwrap(), &vec![1, 2, 3, 1]);
+        assert_eq!(results.get("beta").unwrap(), &vec![9, 8, 7, 9]);
+    }
+
+    #[test]
+    fn test_collect_enabled_raw_n_respects_shared_timeout_budget() {
+        let mut pool = EntropyPool::new(Some(b"test"));
+        pool.add_source(Box::new(MockSource::new("fast", vec![1, 2, 3, 4])));
+        pool.add_source(Box::new(SlowSource::new(
+            "slow",
+            Duration::from_millis(200),
+            7,
+        )));
+
+        let enabled = vec!["fast".to_string(), "slow".to_string()];
+        let start = Instant::now();
+        let results = pool.collect_enabled_raw_n(&enabled, 0.05, 4);
+        let elapsed = start.elapsed();
+
+        assert!(elapsed < Duration::from_millis(150));
+        assert_eq!(results.get("fast").unwrap(), &vec![1, 2, 3, 4]);
+        assert!(!results.contains_key("slow"));
+    }
+
+    #[test]
+    fn test_collect_all_parallel_keeps_backoff_after_worker_finishes() {
+        let mut pool = EntropyPool::new(Some(b"test"));
+        pool.add_source(Box::new(SlowSource::new(
+            "slow",
+            Duration::from_millis(200),
+            7,
+        )));
+
+        assert_eq!(pool.collect_all_parallel_n(0.05, 4), 0);
+        std::thread::sleep(Duration::from_millis(250));
+
+        let backoff_until = pool.backoff_until.lock().unwrap().get(&0).copied();
+        assert!(backoff_until.is_some());
+        assert!(backoff_until.unwrap() > Instant::now());
+
+        let retry_started = Instant::now();
+        assert_eq!(pool.collect_all_parallel_n(0.05, 4), 0);
+        assert!(retry_started.elapsed() < Duration::from_millis(50));
+    }
+
+    #[test]
+    fn test_collect_enabled_raw_n_keeps_backoff_after_worker_finishes() {
+        let mut pool = EntropyPool::new(Some(b"test"));
+        pool.add_source(Box::new(SlowSource::new(
+            "slow",
+            Duration::from_millis(200),
+            7,
+        )));
+
+        let enabled = vec!["slow".to_string()];
+        assert!(pool.collect_enabled_raw_n(&enabled, 0.05, 4).is_empty());
+        std::thread::sleep(Duration::from_millis(250));
+
+        let backoff_until = pool.backoff_until.lock().unwrap().get(&0).copied();
+        assert!(backoff_until.is_some());
+        assert!(backoff_until.unwrap() > Instant::now());
+
+        let retry_started = Instant::now();
+        assert!(pool.collect_enabled_raw_n(&enabled, 0.05, 4).is_empty());
+        assert!(retry_started.elapsed() < Duration::from_millis(50));
     }
 
     // -----------------------------------------------------------------------

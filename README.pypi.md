@@ -33,4 +33,4 @@ print(data.hex())
 ## Docs
 
 - Project: https://github.com/amenti-labs/openentropy
-- Python SDK docs: https://github.com/amenti-labs/openentropy/blob/main/docs/PYTHON_SDK.md
+- Python SDK docs: https://amenti-labs.github.io/openentropy/python-sdk/reference/

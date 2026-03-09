@@ -623,7 +623,7 @@ Return the default `BenchConfig` as a dict. Useful for inspecting defaults befor
 Low-level session writer for recording entropy samples to disk.
 
 **Constructor:** `SessionWriter(sources, output_dir, conditioning="raw", tags=None, note=None, analyze=False)`
-- `sources` — list of source names to record
+- `sources` — non-empty, duplicate-free list of source names to record
 - `output_dir` — directory where session folder will be created
 - `conditioning` — `"raw"` | `"vonneumann"` | `"sha256"`
 - `tags` — optional dict of string key-value metadata
@@ -631,7 +631,7 @@ Low-level session writer for recording entropy samples to disk.
 - `analyze` — if True, embed statistical analysis in session.json
 
 **Methods:**
-- `write_sample(source_name, raw: bytes, conditioned: bytes)` — write one sample
+- `write_sample(source_name, raw: bytes, conditioned: bytes)` — write one sample for a declared source name
 - `finish() -> str` — finalize session, return session directory path
 - `total_samples() -> int` — samples written so far
 - `elapsed_secs() -> float` — seconds since recording started
@@ -652,6 +652,10 @@ print(f"Session saved to: {path}")
 ### `record(pool, sources, duration_secs, conditioning="raw", output_dir="sessions", analyze=False) -> dict`
 
 Convenience function: record entropy from a pool for a fixed duration. Returns session metadata dict.
+
+- `sources` must contain at least one source name.
+- `sources` must use exact names from `pool.source_names()` or `pool.sources()`.
+- Unknown source names raise `ValueError`; duplicate names are deduplicated before recording.
 
 ```python
 from openentropy import EntropyPool, record

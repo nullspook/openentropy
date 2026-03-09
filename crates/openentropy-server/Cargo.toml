@@ -8,7 +8,7 @@ repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
-description = "HTTP entropy server — ANU QRNG API compatible"
+description = "HTTP entropy server with an ANU-style random endpoint"
 readme = "README.md"
 
 [dependencies]
@@ -17,3 +17,6 @@ axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

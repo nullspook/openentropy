@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 use openentropy_core::conditioning::condition;
 use openentropy_core::session::{SessionConfig, SessionMeta, SessionWriter};
 
+const DEFAULT_SWEEP_TIMEOUT_SECS: f64 = 10.0;
+
 pub struct RecordArgs {
     pub positional: Vec<String>,
     pub all: bool,
@@ -173,33 +175,31 @@ pub fn run(args: RecordArgs) {
 
     // Recording loop
     let start = Instant::now();
+    let stop_at = build_stop_at(start, max_duration);
     let mut had_write_error = false;
 
     'outer: while running.load(Ordering::SeqCst) {
         // Check duration limit
-        if let Some(max) = max_duration
-            && start.elapsed() >= max
-        {
+        if deadline_reached(Instant::now(), stop_at) {
             break;
         }
 
-        // Collect from each source individually, bypassing the shared pool buffer
-        // so raw/conditioned streams are always tied to the same sample.
+        // Collect from all enabled sources under one shared timeout budget.
+        // This keeps `record --all --duration ...` bounded even when a subset
+        // of sources are slow or temporarily hung.
+        let sweep_timeout_secs = sweep_timeout_secs(Instant::now(), stop_at);
+        if sweep_timeout_secs <= 0.0 {
+            break;
+        }
+        let raw_by_source = pool.collect_enabled_raw_n(&available, sweep_timeout_secs, 1000);
+
         for source_name in &available {
-            if !running.load(Ordering::SeqCst) {
-                break 'outer;
-            }
-
-            let raw = pool
-                .get_source_raw_bytes(source_name, 1000)
-                .unwrap_or_default();
-            if raw.is_empty() {
+            let Some(raw) = raw_by_source.get(source_name) else {
                 continue;
-            }
+            };
+            let conditioned = condition(raw, raw.len(), mode);
 
-            let conditioned = condition(&raw, raw.len(), mode);
-
-            if let Err(e) = writer.write_sample(source_name, &raw, &conditioned) {
+            if let Err(e) = writer.write_sample(source_name, raw, &conditioned) {
                 eprintln!("\nError writing sample: {e}");
                 had_write_error = true;
                 break 'outer;
@@ -217,7 +217,7 @@ pub fn run(args: RecordArgs) {
 
         // Wait for interval if configured
         if let Some(iv) = interval_dur {
-            let deadline = Instant::now() + iv;
+            let deadline = sleep_deadline(Instant::now(), iv, stop_at);
             while Instant::now() < deadline && running.load(Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -290,4 +290,81 @@ fn parse_duration(s: &str) -> Duration {
         std::process::exit(1);
     });
     Duration::from_millis(millis)
+}
+
+fn build_stop_at(start: Instant, max_duration: Option<Duration>) -> Option<Instant> {
+    max_duration.and_then(|duration| start.checked_add(duration))
+}
+
+fn sweep_timeout_secs(now: Instant, stop_at: Option<Instant>) -> f64 {
+    match stop_at {
+        Some(deadline) => deadline
+            .saturating_duration_since(now)
+            .as_secs_f64()
+            .min(DEFAULT_SWEEP_TIMEOUT_SECS),
+        None => DEFAULT_SWEEP_TIMEOUT_SECS,
+    }
+}
+
+fn deadline_reached(now: Instant, stop_at: Option<Instant>) -> bool {
+    stop_at.is_some_and(|deadline| now >= deadline)
+}
+
+fn sleep_deadline(now: Instant, interval: Duration, stop_at: Option<Instant>) -> Instant {
+    let interval_deadline = now.checked_add(interval).unwrap_or(now);
+    match stop_at {
+        Some(deadline) if deadline < interval_deadline => deadline,
+        _ => interval_deadline,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DEFAULT_SWEEP_TIMEOUT_SECS, build_stop_at, deadline_reached, sleep_deadline,
+        sweep_timeout_secs,
+    };
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn build_stop_at_adds_duration_when_present() {
+        let start = Instant::now();
+        let stop_at = build_stop_at(start, Some(Duration::from_secs(2))).unwrap();
+        assert!(stop_at > start);
+    }
+
+    #[test]
+    fn deadline_reached_returns_false_without_deadline() {
+        assert!(!deadline_reached(Instant::now(), None));
+    }
+
+    #[test]
+    fn deadline_reached_returns_true_at_or_after_deadline() {
+        let now = Instant::now();
+        let deadline = now.checked_sub(Duration::from_millis(1)).unwrap();
+        assert!(deadline_reached(now, Some(deadline)));
+    }
+
+    #[test]
+    fn sweep_timeout_secs_uses_default_without_deadline() {
+        let timeout = sweep_timeout_secs(Instant::now(), None);
+        assert_eq!(timeout, DEFAULT_SWEEP_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn sweep_timeout_secs_caps_remaining_time() {
+        let now = Instant::now();
+        let deadline = now.checked_add(Duration::from_millis(250)).unwrap();
+        let timeout = sweep_timeout_secs(now, Some(deadline));
+        assert!(timeout > 0.0);
+        assert!(timeout <= 0.25);
+    }
+
+    #[test]
+    fn sleep_deadline_clamps_interval_to_stop_at() {
+        let now = Instant::now();
+        let stop_at = now.checked_add(Duration::from_millis(50)).unwrap();
+        let deadline = sleep_deadline(now, Duration::from_secs(1), Some(stop_at));
+        assert_eq!(deadline, stop_at);
+    }
 }

@@ -52,6 +52,7 @@ pub mod platform;
 pub mod pool;
 pub mod session;
 pub mod source;
+pub mod source_resolution;
 pub mod sources;
 pub mod statistics;
 pub mod telemetry;
@@ -99,6 +100,7 @@ pub use session::{
     detect_machine_info, list_sessions, load_session_raw_data,
 };
 pub use source::{EntropySource, Platform, Requirement, SourceCategory, SourceInfo};
+pub use source_resolution::{SourceMatchMode, SourceResolution, resolve_source_names};
 pub use statistics::{
     AnovaResult, CramerVonMisesResult, GapTestResult, KruskalWallisResult, LeveneResult,
     LjungBoxResult, MultipleCorrectionResult, PowerResult, StatisticsAnalysis, anova,

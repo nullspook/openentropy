@@ -9,8 +9,11 @@ use pyo3::prelude::*;
 
 use openentropy_core::conditioning::condition;
 use openentropy_core::session::{SessionConfig, SessionWriter};
+use openentropy_core::source_resolution::{SourceMatchMode, resolve_source_names};
 
 use super::PyEntropyPool;
+
+const DEFAULT_SWEEP_TIMEOUT_SECS: f64 = 10.0;
 
 // ---------------------------------------------------------------------------
 // PySessionWriter class
@@ -123,6 +126,8 @@ fn record(
     analyze: bool,
 ) -> PyResult<PyObject> {
     let mode = super::parse_conditioning_mode(conditioning)?;
+    let max_dur = validate_duration_secs(duration_secs)?;
+    let sources = resolve_record_sources(pool, &sources)?;
 
     let config = SessionConfig {
         sources: sources.clone(),
@@ -140,21 +145,21 @@ fn record(
     let result = py.allow_threads(|| -> Result<PathBuf, std::io::Error> {
         let mut writer = writer;
         let start = Instant::now();
-        let max_dur = Duration::from_secs_f64(duration_secs);
+        let stop_at = start.checked_add(max_dur);
 
-        while start.elapsed() < max_dur {
+        while !deadline_reached(Instant::now(), stop_at) {
+            let sweep_timeout_secs = sweep_timeout_secs(Instant::now(), stop_at);
+            if sweep_timeout_secs <= 0.0 {
+                break;
+            }
+            let raw_by_source = pool_ref.collect_enabled_raw_n(&sources, sweep_timeout_secs, 1000);
+
             for source in &sources {
-                if start.elapsed() >= max_dur {
-                    break;
-                }
-                let raw = pool_ref
-                    .get_source_raw_bytes(source, 1000)
-                    .unwrap_or_default();
-                if raw.is_empty() {
+                let Some(raw) = raw_by_source.get(source) else {
                     continue;
-                }
-                let conditioned = condition(&raw, raw.len(), mode);
-                writer.write_sample(source, &raw, &conditioned)?;
+                };
+                let conditioned = condition(raw, raw.len(), mode);
+                writer.write_sample(source, raw, &conditioned)?;
             }
         }
 
@@ -168,6 +173,59 @@ fn record(
     let json_module = py.import("json")?;
     let parsed = json_module.call_method1("loads", (json_str,))?;
     Ok(parsed.into())
+}
+
+fn resolve_record_sources(pool: &PyEntropyPool, requested: &[String]) -> PyResult<Vec<String>> {
+    if requested.is_empty() {
+        return Err(PyValueError::new_err(
+            "at least one source is required for recording",
+        ));
+    }
+
+    let available = pool.inner.source_names();
+    let resolution = resolve_source_names(&available, requested, SourceMatchMode::ExactOnly);
+
+    if !resolution.missing.is_empty() {
+        let suffix = if resolution.missing.len() == 1 {
+            ""
+        } else {
+            "s"
+        };
+        return Err(PyValueError::new_err(format!(
+            "unknown source name{suffix}: {}. Use pool.source_names() or pool.sources() to inspect available sources.",
+            resolution.missing.join(", ")
+        )));
+    }
+
+    Ok(resolution.resolved)
+}
+
+fn validate_duration_secs(duration_secs: f64) -> PyResult<Duration> {
+    if !duration_secs.is_finite() {
+        return Err(PyValueError::new_err(
+            "duration_secs must be a finite non-negative number",
+        ));
+    }
+    if duration_secs < 0.0 {
+        return Err(PyValueError::new_err(
+            "duration_secs must be a finite non-negative number",
+        ));
+    }
+    Ok(Duration::from_secs_f64(duration_secs))
+}
+
+fn deadline_reached(now: Instant, stop_at: Option<Instant>) -> bool {
+    stop_at.is_some_and(|deadline| now >= deadline)
+}
+
+fn sweep_timeout_secs(now: Instant, stop_at: Option<Instant>) -> f64 {
+    match stop_at {
+        Some(deadline) => deadline
+            .saturating_duration_since(now)
+            .as_secs_f64()
+            .min(DEFAULT_SWEEP_TIMEOUT_SECS),
+        None => DEFAULT_SWEEP_TIMEOUT_SECS,
+    }
 }
 
 // ---------------------------------------------------------------------------

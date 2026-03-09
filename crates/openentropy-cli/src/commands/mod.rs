@@ -16,6 +16,7 @@ use openentropy_core::EntropySource;
 use openentropy_core::analysis::CrossCorrMatrix;
 use openentropy_core::conditioning::ConditioningMode;
 use openentropy_core::platform::detect_available_sources;
+use openentropy_core::source_resolution::{SourceMatchMode, resolve_source_names};
 
 /// Set the QCicada mode before source discovery so that
 /// `QCicadaConfig::default()` picks it up at construction time.
@@ -30,7 +31,7 @@ pub fn apply_qcicada_mode(mode: Option<&str>) {
 
 /// Build an EntropyPool, optionally filtering sources by name.
 /// If no filter is given, only fast sources (is_fast=true) are included to avoid hangs.
-/// Use `--sources all` to include every available source.
+/// Use `--all` (or the positional alias `all`) to include every available source.
 pub fn make_pool(source_filter: Option<&str>) -> EntropyPool {
     let mut pool = EntropyPool::new(None);
 
@@ -71,6 +72,11 @@ pub fn make_pool(source_filter: Option<&str>) -> EntropyPool {
     pool
 }
 
+/// Whether the user requested "all sources" via flag or positional alias.
+pub fn requests_all_sources(positional: &[String], all: bool) -> bool {
+    all || matches!(positional, [single] if single.eq_ignore_ascii_case("all"))
+}
+
 /// Parse a conditioning mode string into the enum (case-insensitive).
 pub fn parse_conditioning(s: &str) -> ConditioningMode {
     match s.to_lowercase().as_str() {
@@ -95,52 +101,34 @@ pub fn unix_timestamp_now() -> u64 {
 /// Find a single source by name (exact match first, then partial).
 pub fn find_source(name: &str) -> Option<Box<dyn EntropySource>> {
     let sources = detect_available_sources();
-    // Exact match first
-    if let Some(idx) = sources.iter().position(|s| s.name() == name) {
-        return Some(sources.into_iter().nth(idx).unwrap());
-    }
-    // Partial match fallback (case-insensitive)
-    let lower = name.to_lowercase();
-    let idx = sources
-        .iter()
-        .position(|s| s.name().to_lowercase().contains(&lower))?;
-    Some(sources.into_iter().nth(idx).unwrap())
+    let available: Vec<String> = sources.iter().map(|s| s.name().to_string()).collect();
+    let resolution = resolve_source_names(
+        &available,
+        &[name.to_string()],
+        SourceMatchMode::ExactThenSubstringInsensitive,
+    );
+    let resolved = resolution.resolved.first()?;
+    sources.into_iter().find(|source| source.name() == resolved)
 }
 
 /// Find multiple sources by name. Each name is matched exactly first, then partially.
 pub fn find_sources(names: &[String]) -> Vec<Box<dyn EntropySource>> {
     let sources = detect_available_sources();
-    let mut used_indices = std::collections::HashSet::new();
-
-    for name in names {
-        let lower = name.to_lowercase();
-        // Exact match first, then partial
-        let idx = sources
-            .iter()
-            .enumerate()
-            .find(|(i, s)| !used_indices.contains(i) && s.name() == name)
-            .or_else(|| {
-                sources.iter().enumerate().find(|(i, s)| {
-                    !used_indices.contains(i) && s.name().to_lowercase().contains(&lower)
-                })
-            });
-        if let Some((i, _)) = idx {
-            used_indices.insert(i);
-        } else {
-            eprintln!("Warning: source '{name}' not found, skipping.");
-        }
+    let available: Vec<String> = sources.iter().map(|s| s.name().to_string()).collect();
+    let resolution = resolve_source_names(
+        &available,
+        names,
+        SourceMatchMode::ExactThenSubstringInsensitive,
+    );
+    for name in &resolution.missing {
+        eprintln!("Warning: source '{name}' not found, skipping.");
     }
-
-    // Collect in detection order for determinism
-    let mut indices: Vec<usize> = used_indices.into_iter().collect();
-    indices.sort();
-    let mut result = Vec::with_capacity(indices.len());
-    for (i, source) in sources.into_iter().enumerate() {
-        if indices.contains(&i) {
-            result.push(source);
-        }
-    }
-    result
+    let resolved: std::collections::HashSet<&str> =
+        resolution.resolved.iter().map(String::as_str).collect();
+    sources
+        .into_iter()
+        .filter(|source| resolved.contains(source.name()))
+        .collect()
 }
 
 /// Resolve source arguments into a list of sources.
@@ -149,6 +137,16 @@ pub fn find_sources(names: &[String]) -> Vec<Box<dyn EntropySource>> {
 /// - If `--all` is set, return all available sources.
 /// - Otherwise return fast sources only.
 pub fn resolve_sources(positional: &[String], all: bool) -> Vec<Box<dyn EntropySource>> {
+    let all_sources = detect_available_sources();
+
+    if requests_all_sources(positional, all) {
+        if all_sources.is_empty() {
+            eprintln!("No sources available on this platform.");
+            std::process::exit(1);
+        }
+        return all_sources;
+    }
+
     if !positional.is_empty() {
         let sources = find_sources(positional);
         if sources.is_empty() {
@@ -158,16 +156,6 @@ pub fn resolve_sources(positional: &[String], all: bool) -> Vec<Box<dyn EntropyS
             std::process::exit(1);
         }
         return sources;
-    }
-
-    let all_sources = detect_available_sources();
-
-    if all {
-        if all_sources.is_empty() {
-            eprintln!("No sources available on this platform.");
-            std::process::exit(1);
-        }
-        return all_sources;
     }
 
     // Default: fast sources only (derived from SourceInfo.is_fast)
@@ -223,22 +211,6 @@ pub fn read_session_meta(session_dir: &std::path::Path) -> openentropy_core::ses
         Ok(m) => m,
         Err(e) => {
             eprintln!("Failed to parse {}: {e}", json_path.display());
-            std::process::exit(1);
-        }
-    }
-}
-
-/// Read raw.bin from a session directory.
-pub fn read_raw_bin(session_dir: &std::path::Path) -> Vec<u8> {
-    let raw_path = session_dir.join("raw.bin");
-    if !raw_path.exists() {
-        eprintln!("Missing raw.bin in {}", session_dir.display());
-        std::process::exit(1);
-    }
-    match std::fs::read(&raw_path) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Failed to read {}: {e}", raw_path.display());
             std::process::exit(1);
         }
     }
@@ -390,6 +362,18 @@ mod tests {
         let pool = make_pool(Some("all"));
         // "all" should include everything available
         assert!(pool.source_count() > 0);
+    }
+
+    #[test]
+    fn test_requests_all_sources_flag() {
+        assert!(requests_all_sources(&[], true));
+    }
+
+    #[test]
+    fn test_requests_all_sources_positional_alias() {
+        assert!(requests_all_sources(&["all".to_string()], false));
+        assert!(requests_all_sources(&["ALL".to_string()], false));
+        assert!(!requests_all_sources(&["clock_jitter".to_string()], false));
     }
 
     #[test]

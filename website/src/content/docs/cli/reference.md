@@ -76,7 +76,7 @@ openentropy scan --telemetry
 openentropy bench                    # standard profile on fast sources
 openentropy bench --profile quick    # faster confidence pass
 openentropy bench --profile deep     # higher-confidence benchmark
-openentropy bench all                # all sources
+openentropy bench --all              # all sources
 openentropy bench clock_jitter       # filter by name
 openentropy bench --rank-by throughput
 openentropy bench --telemetry
@@ -115,7 +115,6 @@ openentropy monitor --telemetry
 | c | Cycle conditioning mode (SHA-256 → Von Neumann → Raw) |
 | n | Cycle sample size |
 | +/- | Adjust refresh rate |
-| Tab | Compare two sources (select one, move cursor to another, Tab) |
 | p | Pause/resume collection |
 | r | Start/stop recording |
 | s | Export snapshot |
@@ -146,6 +145,19 @@ curl "http://localhost:8080/health"
 curl "http://localhost:8080/sources?telemetry=true"
 curl "http://localhost:8080/pool/status?telemetry=true"
 ```
+
+`length` is always the number of output bytes requested. The response includes
+`length` as the returned byte count and `value_count` as the number of encoded
+items in `data`. `type=hex16` and `type=uint16` pack two bytes per item, so they
+require an even `length`.
+
+Invalid query parameters return JSON `400 Bad Request` responses. `/pool/status`
+uses `sources_healthy` for the aggregate count; each source row still uses
+`healthy` as a boolean.
+
+`/sources` and `/pool/status` source rows expose:
+`name`, `healthy`, `bytes`, `entropy`, `min_entropy`, `autocorrelation`,
+`time`, and `failures`.
 
 ## `analyze` — Statistical source analysis
 
@@ -186,7 +198,7 @@ openentropy analyze --report --telemetry --output report.md
 ```bash
 openentropy record clock_jitter --duration 30s
 openentropy record qcicada --duration 5m --tag experiment:baseline --note "5-min baseline"
-openentropy record all --duration 1m --analyze --telemetry
+openentropy record --all --duration 1m --analyze --telemetry
 openentropy record qcicada --calibrate --duration 5m  # PEAR-style calibration gate before recording
 openentropy record qcicada --qcicada-mode raw --duration 5m
 ```
@@ -227,5 +239,7 @@ Runs forensic comparison (Shannon, min-entropy, bit bias, spectral, stationarity
 two-sample tests (KS, chi-squared, Mann-Whitney), temporal anomaly detection,
 multi-lag autocorrelation, Markov transitions, digram analysis, run-length
 distributions, effect sizes, and PEAR-style trial comparison with Stouffer Z
-meta-analysis. For `compare`, profile presets currently control only whether
-min-entropy breakdown is enabled by default.
+meta-analysis. Comparison uses indexed `raw.bin` samples grouped by source name
+and analyzes only the common sources present in both sessions. For `compare`,
+profile presets currently control only whether min-entropy breakdown is enabled
+by default.

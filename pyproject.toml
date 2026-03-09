@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "openentropy"
 version = "0.12.0"
-description = "Your computer is a hardware noise observatory. Harvests entropy from 45 unconventional hardware sources."
+description = "Your computer is a hardware noise observatory. Harvests entropy from 60+ hardware noise sources."
 readme = "README.pypi.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -32,7 +32,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/amenti-labs/openentropy"
 Repository = "https://github.com/amenti-labs/openentropy"
-Documentation = "https://github.com/amenti-labs/openentropy/tree/main/docs"
+Documentation = "https://amenti-labs.github.io/openentropy/"
 Issues = "https://github.com/amenti-labs/openentropy/issues"
 
 [tool.maturin]

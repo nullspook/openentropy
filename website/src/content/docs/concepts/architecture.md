@@ -53,7 +53,7 @@ flowchart TD
 
 ### 1. openentropy-core
 
-The foundational library. Contains all 63 entropy source implementations, the mixing pool, conditioning pipeline, quality metrics, and platform detection.
+The foundational library. Contains the source registry, mixing pool, conditioning pipeline, quality metrics, and platform detection.
 
 **Key dependencies:** `sha2`, `flate2`, `libc`, `rand`, `tempfile`, `log`, `getrandom`
 
@@ -77,7 +77,7 @@ The command-line binary (`openentropy`). Provides nine subcommands for interacti
 
 ### 3. openentropy-server
 
-An HTTP entropy server built on axum. Implements an API compatible with the ANU QRNG format, allowing any QRNG client to consume hardware entropy over HTTP.
+An HTTP entropy server built on axum. Exposes an ANU-style random-bytes API over `/api/v1/random`, allowing QRNG-style clients to consume hardware entropy over HTTP.
 
 **Key dependencies:** `openentropy-core`, `axum`, `tokio`, `serde`, `serde_json`
 
@@ -105,7 +105,7 @@ WebAssembly bindings that expose selected entropy functionality for browser envi
 
 ```mermaid
 flowchart TD
-    Sources[63 entropy sources across timing system network IO IPC microarch GPU sensor thermal quantum signal]
+    Sources[source registry across timing system network IO IPC microarch GPU sensor thermal quantum signal]
     Collect[each source collect(n_samples) -> Vec<u8>]
     Pool[EntropyPool mutex buffer with health monitoring]
     Conditioning[SHA-256 final conditioning per 32-byte block]
@@ -118,7 +118,7 @@ flowchart TD
     Conditioning --> StreamOut[CLI stream and FIFO output]
     Conditioning --> HttpOut[HTTP server endpoints]
     RustOut --> PyOut[Python bindings via PyO3]
-    HttpOut --> AnuCompat[ANU QRNG-compatible /api/v1/random]
+    HttpOut --> AnuCompat[ANU-style /api/v1/random]
 ```
 
 ## Key Traits and Types
@@ -232,13 +232,14 @@ Each source tracks runtime health via `SourceState`:
 
 ```rust
 pub struct SourceState {
-    pub source: Box<dyn EntropySource>,
-    pub weight: f64,           // Collection weight
-    pub total_bytes: u64,      // Lifetime bytes collected
-    pub failures: u64,         // Collection failure count
-    pub last_entropy: f64,     // Shannon entropy of last collection
+    pub source: Arc<dyn EntropySource>,
+    pub total_bytes: u64,             // Lifetime bytes collected
+    pub failures: u64,                // Collection failure count
+    pub last_entropy: f64,            // Shannon entropy of last collection
+    pub last_min_entropy: f64,        // Min-entropy of last collection
+    pub last_autocorrelation: f64,    // Lag-1 autocorrelation of last collection
     pub last_collect_time: Duration,  // Last collection duration
-    pub healthy: bool,         // true if last_entropy > 1.0 bits/byte
+    pub healthy: bool,                // true if last_entropy > 1.0 bits/byte
 }
 ```
 

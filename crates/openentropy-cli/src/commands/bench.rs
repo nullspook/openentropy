@@ -46,7 +46,7 @@ pub struct BenchArgs {
 
 pub fn run(args: BenchArgs) {
     // Single-source detail mode: exactly one positional arg (and no multi-source flags)
-    if args.positional.len() == 1 && !args.all {
+    if args.positional.len() == 1 && !super::requests_all_sources(&args.positional, args.all) {
         if args.rounds.is_some() || args.warmup_rounds.is_some() || args.output.is_some() {
             eprintln!(
                 "Note: --rounds, --warmup-rounds, and --output are ignored in single-source probe mode."
@@ -75,7 +75,7 @@ pub fn run(args: BenchArgs) {
     }
 
     // Build pool from positional args, --all, or default fast sources
-    let source_filter = if args.all {
+    let source_filter = if super::requests_all_sources(&args.positional, args.all) {
         Some("all".to_string())
     } else if !args.positional.is_empty() {
         Some(args.positional.join(","))

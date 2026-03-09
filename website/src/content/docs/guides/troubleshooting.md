@@ -9,7 +9,7 @@ description: 'Common issues and fixes for openentropy'
 
 **Causes & Fixes**:
 
-- **Unsupported platform**: OpenEntropy primarily targets macOS on Apple Silicon. Linux support covers ~14 of 63 sources. Windows is not yet supported.
+- **Unsupported platform**: OpenEntropy primarily targets macOS on Apple Silicon. Linux support covers a smaller subset of the full source registry. Windows is not yet supported.
 - **Permissions**: Some sources require elevated permissions or entitlements. Try running with `sudo` to rule out permission issues.
 - **Binary mismatch**: Ensure you're running a binary built for your architecture (`uname -m` should match the binary target).
 
@@ -50,7 +50,7 @@ description: 'Common issues and fixes for openentropy'
 openentropy bench
 
 # If you need all sources, increase timeout
-openentropy bench all
+openentropy bench --all
 ```
 
 In the Rust API:

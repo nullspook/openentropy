@@ -66,7 +66,7 @@ fn list_sessions(dir: &str) {
     let sessions_dir = Path::new(dir);
     if !sessions_dir.exists() {
         println!("No sessions directory found at {dir}");
-        println!("Record a session first: openentropy record --sources <name>");
+        println!("Record a session first: openentropy record clock_jitter --duration 30s");
         return;
     }
 
@@ -80,7 +80,7 @@ fn list_sessions(dir: &str) {
 
     if sessions.is_empty() {
         println!("No sessions found in {dir}/");
-        println!("Record a session first: openentropy record --sources <name>");
+        println!("Record a session first: openentropy record clock_jitter --duration 30s");
         return;
     }
 

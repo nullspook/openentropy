@@ -40,6 +40,9 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude openentropy-python
 
+      - name: CLI help smoke test
+        run: cargo run -p openentropy-cli -- --help >/dev/null
+
       - name: Build release
         run: cargo build --release --workspace --exclude openentropy-python
 
@@ -77,3 +80,21 @@ jobs:
         run: |
           source .venv/bin/activate
           python scripts/ci/check_python_source_parity.py
+
+  docs:
+    name: Docs Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install docs dependencies
+        run: cd website && npm ci
+
+      - name: Build docs site
+        run: cd website && npm run build

@@ -14,7 +14,7 @@
 //! - `conditioned.bin` — concatenated conditioned bytes
 //! - `conditioned_index.csv` — byte offset index into conditioned.bin
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -326,8 +326,25 @@ impl SessionWriter {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session directory or any output files cannot be created.
+    /// Returns an error if no sources were configured, or if the session
+    /// directory or any output files cannot be created.
     pub fn new(config: SessionConfig) -> std::io::Result<Self> {
+        if config.sources.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "at least one source is required for session recording",
+            ));
+        }
+        let mut seen = HashSet::new();
+        for source in &config.sources {
+            if !seen.insert(source.as_str()) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("duplicate source '{source}' in session configuration"),
+                ));
+            }
+        }
+
         let machine = detect_machine_info();
         let session_id = Uuid::new_v4().to_string();
         let started_at = SystemTime::now();
@@ -419,6 +436,12 @@ impl SessionWriter {
         raw_bytes: &[u8],
         conditioned_bytes: &[u8],
     ) -> std::io::Result<()> {
+        if !self.samples_per_source.contains_key(source) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("source '{source}' was not declared for this session"),
+            ));
+        }
         if raw_bytes.is_empty() {
             return Ok(());
         }
@@ -901,6 +924,45 @@ mod tests {
     }
 
     #[test]
+    fn test_session_writer_rejects_empty_sources() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = SessionConfig {
+            output_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        let err = match SessionWriter::new(config) {
+            Ok(_) => panic!("empty sources should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("at least one source"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_session_writer_rejects_duplicate_sources() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = SessionConfig {
+            sources: vec!["dup_source".to_string(), "dup_source".to_string()],
+            output_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        let err = match SessionWriter::new(config) {
+            Ok(_) => panic!("duplicate sources should be rejected"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("duplicate source"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
     fn test_build_session_dir_name_is_compact() {
         let sources: Vec<String> = (0..40)
             .map(|i| format!("very_long_source_name_number_{i}_with_extra_detail"))
@@ -1232,6 +1294,28 @@ mod tests {
 
         let mut writer = SessionWriter::new(config).unwrap();
         writer.write_sample("test", &[], &[]).unwrap();
+        assert_eq!(writer.total_samples(), 0);
+        let _ = writer.finish().unwrap();
+    }
+
+    #[test]
+    fn test_write_sample_rejects_undeclared_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = SessionConfig {
+            sources: vec!["declared".to_string()],
+            output_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+
+        let mut writer = SessionWriter::new(config).unwrap();
+        let err = writer
+            .write_sample("undeclared", &[1, 2, 3], &[1, 2, 3])
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("was not declared"),
+            "unexpected error: {err}"
+        );
         assert_eq!(writer.total_samples(), 0);
         let _ = writer.finish().unwrap();
     }

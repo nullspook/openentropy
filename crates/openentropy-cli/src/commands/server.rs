@@ -22,12 +22,13 @@ pub fn run(
     println!("     GET /pool/status      Detailed pool status");
     println!();
     println!("   Query params for /api/v1/random:");
-    println!("     length=N              Bytes to return (1-65536, default: 1024)");
-    println!("     type=hex16|uint8|uint16  Output format (default: hex16)");
+    println!("     length=N              Output bytes to return (must be 1-65536, default: 1024)");
+    println!("     type=hex16|uint8|uint16  Output encoding (hex16/uint16 require even length)");
     println!("     source=<name>         Request from a specific source");
     println!("     conditioning=sha256|vonneumann|raw");
     println!("   Query params for /sources and /pool/status:");
     println!("     telemetry=true        Include telemetry_v1 start/end report");
+    println!("   Invalid query params return JSON 400 responses");
     if !allow_raw {
         println!("     (raw conditioning requires --allow-raw flag)");
     }

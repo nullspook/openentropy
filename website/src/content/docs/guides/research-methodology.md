@@ -17,7 +17,7 @@ openentropy stream --conditioning raw --format raw --bytes 4096 > sample.bin
 ## 2) Record Sessions
 
 ```bash
-openentropy record all --duration 5m --analyze --telemetry
+openentropy record --all --duration 5m --analyze --telemetry
 openentropy sessions sessions/<id> --profile deep --output session-analysis.json
 ```
 

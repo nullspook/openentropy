@@ -28,6 +28,7 @@ pub use conditioning::{
 };
 pub use platform::{detect_available_sources, platform_info};
 pub use pool::{EntropyPool, HealthReport, SourceHealth, SourceInfoSnapshot};
+pub use source_resolution::{SourceMatchMode, SourceResolution, resolve_source_names};
 pub use comparison::{
     AggregateDelta, ComparisonResult, DigramAnalysis, MarkovAnalysis, MultiLagAnalysis,
     RunLengthComparison, TemporalAnalysis, TwoSampleTests, WindowAnomaly, aggregate_delta,
@@ -228,11 +229,20 @@ pub enum SourceCategory {
 ```rust
 pub fn detect_available_sources() -> Vec<Box<dyn EntropySource>>
 pub fn platform_info() -> PlatformInfo
+pub fn resolve_source_names(
+    available: &[String],
+    requested: &[String],
+    mode: SourceMatchMode,
+) -> SourceResolution
 ```
 
 ```rust
-pub fn all_sources() -> Vec<Box<dyn EntropySource>> // currently 63 sources
+pub fn all_sources() -> Vec<Box<dyn EntropySource>> // registry size varies by release
 ```
+
+`resolve_source_names()` is the shared name-matching helper used across surfaces.
+Use `SourceMatchMode::ExactOnly` for strict SDK/API behavior and
+`SourceMatchMode::ExactThenSubstringInsensitive` for CLI-style exact-then-partial matching.
 
 ## openentropy-tests
 
@@ -265,9 +275,20 @@ pub async fn run_server(pool: EntropyPool, host: &str, port: u16, allow_raw: boo
 HTTP endpoints:
 
 - `GET /api/v1/random?length=N&type=T[&raw=true|&conditioning=...]`
+  `length` is output bytes, not array-item count. Responses report `length` as
+  returned bytes and `value_count` as the number of encoded items in `data`.
+  `type=hex16` and `type=uint16` require an even `length`.
 - `GET /health`
 - `GET /sources`
 - `GET /pool/status`
+
+Invalid query parameters return JSON `400 Bad Request` responses. `/health`
+and `/pool/status` use `sources_healthy` for the aggregate healthy-source
+count; per-source entries use `healthy` as a boolean.
+
+`/sources` and `/pool/status` source rows expose:
+`name`, `healthy`, `bytes`, `entropy`, `min_entropy`, `autocorrelation`,
+`time`, and `failures`.
 
 ## openentropy-cli
 
@@ -318,6 +339,9 @@ for src in &report.sources {
 **`BenchSourceReport` fields**: `name`, `composite`, `healthy`, `success_rounds`, `failures`, `avg_shannon`, `avg_min_entropy`, `avg_throughput_bps`, `avg_autocorrelation`, `p99_latency_ms`, `stability`, `grade: char`, `score: f64`
 
 ## Session Utilities (`openentropy_core::session`)
+
+`SessionWriter` session configs must declare a non-empty, duplicate-free source list.
+`write_sample()` only accepts source names declared in that session config.
 
 ### `list_sessions(dir: &Path) -> Result<Vec<(PathBuf, SessionMeta)>, std::io::Error>`
 

@@ -3,8 +3,8 @@ title: 'Entropy Sources'
 description: 'Catalog hub for all source categories and platform availability'
 ---
 
-openentropy currently ships 63 entropy sources across 13 categories. This page
-is the navigation hub for the split source catalog.
+openentropy ships a large source registry across 13 categories. This page is
+the navigation hub for the split source catalog.
 
 ## Source Categories
 

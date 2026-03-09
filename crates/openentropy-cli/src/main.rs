@@ -333,7 +333,7 @@ enum Commands {
         profile: String,
     },
 
-    /// Start an HTTP entropy server (ANU QRNG API compatible)
+    /// Start an HTTP entropy server with an ANU-style random endpoint
     Server {
         /// Source name(s) to include in the pool
         #[arg(value_name = "SOURCE")]
@@ -583,4 +583,114 @@ fn merge_positional_and_legacy(positional: &[String], legacy: Option<&str>) -> V
             .collect();
     }
     vec![]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Commands, merge_positional_and_legacy};
+    use clap::Parser;
+
+    #[test]
+    fn merge_positional_and_legacy_prefers_positional_sources() {
+        let merged = merge_positional_and_legacy(&[String::from("clock_jitter")], Some("qcicada"));
+        assert_eq!(merged, vec![String::from("clock_jitter")]);
+    }
+
+    #[test]
+    fn parses_documented_bench_all_command() {
+        let cli = Cli::try_parse_from([
+            "openentropy",
+            "bench",
+            "--all",
+            "--profile",
+            "deep",
+            "--output",
+            "bench.json",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Bench {
+                source,
+                all,
+                profile,
+                output,
+                ..
+            } => {
+                assert!(source.is_empty());
+                assert!(all);
+                assert_eq!(profile, "deep");
+                assert_eq!(output.as_deref(), Some("bench.json"));
+            }
+            _ => panic!("expected bench command"),
+        }
+    }
+
+    #[test]
+    fn parses_documented_record_all_command() {
+        let cli = Cli::try_parse_from([
+            "openentropy",
+            "record",
+            "--all",
+            "--duration",
+            "1m",
+            "--analyze",
+            "--telemetry",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Record {
+                source,
+                all,
+                duration,
+                analyze,
+                telemetry,
+                ..
+            } => {
+                assert!(source.is_empty());
+                assert!(all);
+                assert_eq!(duration.as_deref(), Some("1m"));
+                assert!(analyze);
+                assert!(telemetry);
+            }
+            _ => panic!("expected record command"),
+        }
+    }
+
+    #[test]
+    fn parses_compat_record_all_alias() {
+        let cli =
+            Cli::try_parse_from(["openentropy", "record", "all", "--duration", "30s"]).unwrap();
+
+        match cli.command {
+            Commands::Record {
+                source,
+                all,
+                duration,
+                ..
+            } => {
+                assert_eq!(source, vec![String::from("all")]);
+                assert!(!all);
+                assert_eq!(duration.as_deref(), Some("30s"));
+            }
+            _ => panic!("expected record command"),
+        }
+    }
+
+    #[test]
+    fn parses_documented_server_allow_raw_command() {
+        let cli = Cli::try_parse_from(["openentropy", "server", "--port", "8080", "--allow-raw"])
+            .unwrap();
+
+        match cli.command {
+            Commands::Server {
+                port, allow_raw, ..
+            } => {
+                assert_eq!(port, 8080);
+                assert!(allow_raw);
+            }
+            _ => panic!("expected server command"),
+        }
+    }
 }

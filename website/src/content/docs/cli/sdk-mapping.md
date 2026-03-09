@@ -12,7 +12,7 @@ This page documents which CLI commands have SDK equivalents in Python and Rust.
 | `scan` | ✅ `detect_available_sources()` | ✅ `detect_available_sources()` | Full parity |
 | `bench` | ✅ `benchmark_sources()` | ✅ `benchmark_sources()` | Full parity |
 | `analyze` | ✅ `full_analysis()`, `chaos_analysis()`, `analyze()` | ✅ `full_analysis()`, `chaos_analysis()`, `analyze()` | Full parity — dispatcher `analyze()` mirrors all CLI analysis flags |
-| `record` | ✅ `SessionWriter`, `record()` | ✅ `SessionWriter` | Full parity |
+| `record` | ✅ `SessionWriter`, `record()` | ✅ `SessionWriter` | Session recording parity; Python `record()` uses the same bounded-duration sweep model as CLI |
 | `monitor` | ❌ | ❌ | CLI-only (TUI) — intentional |
 | `stream` | ✅ `get_random_bytes()` | ✅ | Full parity |
 | `compare` | ✅ `compare()` | ✅ | Full parity |
