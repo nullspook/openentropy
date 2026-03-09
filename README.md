@@ -45,6 +45,12 @@ openentropy monitor
 
 > By default, only fast sources (<2s) are used. Pass `--all` to include slower sources (DNS, TCP, GPU, BLE). The positional alias `all` is also accepted for compatibility.
 
+### External QRNG hardware
+
+Most OpenEntropy sources come from the host machine itself. OpenEntropy also supports external hardware devices when they are attached and discoverable:
+
+- **Crypta Labs QCicada USB QRNG** — exposed as the `qcicada` source. OpenEntropy can read the device's quantum output and benchmark, analyze, record, or compare it alongside on-host sources. The device's own output modes map to `raw`, `sha256`, and `samples`. See the [QCicada manual](https://cryptalabs.com/support/docs/qcicada/).
+
 ### Python
 
 ```bash
@@ -176,6 +182,10 @@ The current source registry spans 13 mechanism-based categories; actual availabi
 
 For full per-source descriptions, platform availability, and physics notes, see
 [Source Catalog](https://amenti-labs.github.io/openentropy/concepts/sources/).
+
+Currently supported external hardware:
+
+- `qcicada` — Crypta Labs QCicada USB QRNG ([manual](https://cryptalabs.com/support/docs/qcicada/))
 
 ---
 

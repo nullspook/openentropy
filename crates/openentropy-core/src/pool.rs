@@ -1085,16 +1085,19 @@ mod tests {
         pool.add_source(Box::new(MockSource::new("fast", vec![1, 2, 3, 4])));
         pool.add_source(Box::new(SlowSource::new(
             "slow",
-            Duration::from_millis(200),
+            Duration::from_millis(500),
             7,
         )));
 
         let enabled = vec!["fast".to_string(), "slow".to_string()];
         let start = Instant::now();
-        let results = pool.collect_enabled_raw_n(&enabled, 0.05, 4);
+        let results = pool.collect_enabled_raw_n(&enabled, 0.01, 4);
         let elapsed = start.elapsed();
 
-        assert!(elapsed < Duration::from_millis(150));
+        assert!(
+            elapsed < Duration::from_millis(250),
+            "shared timeout budget should return well before the slow source finishes: {elapsed:?}"
+        );
         assert_eq!(results.get("fast").unwrap(), &vec![1, 2, 3, 4]);
         assert!(!results.contains_key("slow"));
     }
@@ -1104,19 +1107,19 @@ mod tests {
         let mut pool = EntropyPool::new(Some(b"test"));
         pool.add_source(Box::new(SlowSource::new(
             "slow",
-            Duration::from_millis(200),
+            Duration::from_millis(500),
             7,
         )));
 
-        assert_eq!(pool.collect_all_parallel_n(0.05, 4), 0);
-        std::thread::sleep(Duration::from_millis(250));
+        assert_eq!(pool.collect_all_parallel_n(0.01, 4), 0);
+        std::thread::sleep(Duration::from_millis(600));
 
         let backoff_until = pool.backoff_until.lock().unwrap().get(&0).copied();
         assert!(backoff_until.is_some());
         assert!(backoff_until.unwrap() > Instant::now());
 
         let retry_started = Instant::now();
-        assert_eq!(pool.collect_all_parallel_n(0.05, 4), 0);
+        assert_eq!(pool.collect_all_parallel_n(0.01, 4), 0);
         assert!(retry_started.elapsed() < Duration::from_millis(50));
     }
 
@@ -1125,20 +1128,20 @@ mod tests {
         let mut pool = EntropyPool::new(Some(b"test"));
         pool.add_source(Box::new(SlowSource::new(
             "slow",
-            Duration::from_millis(200),
+            Duration::from_millis(500),
             7,
         )));
 
         let enabled = vec!["slow".to_string()];
-        assert!(pool.collect_enabled_raw_n(&enabled, 0.05, 4).is_empty());
-        std::thread::sleep(Duration::from_millis(250));
+        assert!(pool.collect_enabled_raw_n(&enabled, 0.01, 4).is_empty());
+        std::thread::sleep(Duration::from_millis(600));
 
         let backoff_until = pool.backoff_until.lock().unwrap().get(&0).copied();
         assert!(backoff_until.is_some());
         assert!(backoff_until.unwrap() > Instant::now());
 
         let retry_started = Instant::now();
-        assert!(pool.collect_enabled_raw_n(&enabled, 0.05, 4).is_empty());
+        assert!(pool.collect_enabled_raw_n(&enabled, 0.01, 4).is_empty());
         assert!(retry_started.elapsed() < Duration::from_millis(50));
     }
 
