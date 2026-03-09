@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2 — 2026-03-09
+
+### Fixed
+- Included the synchronized `Cargo.lock` workspace version updates required for release publishing.
+- Re-cut the 0.12.x patch release so the crates.io publish job can run with `--locked`.
+
 ## 0.12.1 — 2026-03-09
 
 ### Added

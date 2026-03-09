@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "openentropy"
-version = "0.12.1"
+version = "0.12.2"
 description = "Your computer is a hardware noise observatory. Harvests entropy from 60+ hardware noise sources."
 readme = "README.pypi.md"
 license = "MIT"

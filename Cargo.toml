@@ -10,7 +10,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.12.1"
+version = "0.12.2"
 edition = "2024"
 license = "MIT"
 authors = ["Amenti Labs"]
@@ -63,6 +63,6 @@ statrs = "0.18"
 rustfft = "6"
 
 # Internal
-openentropy-core = { path = "crates/openentropy-core", version = "0.12.1" }
-openentropy-server = { path = "crates/openentropy-server", version = "0.12.1" }
-openentropy-tests = { path = "crates/openentropy-tests", version = "0.12.1" }
+openentropy-core = { path = "crates/openentropy-core", version = "0.12.2" }
+openentropy-server = { path = "crates/openentropy-server", version = "0.12.2" }
+openentropy-tests = { path = "crates/openentropy-tests", version = "0.12.2" }
