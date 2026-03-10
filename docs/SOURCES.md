@@ -498,6 +498,8 @@ Crypta Labs QCicada USB QRNG — photonic shot noise from an LED/photodiode pair
 
 **Requires:** QCicada USB hardware.
 
+**Collection mode:** OpenEntropy switches QCicada into device fresh-start continuous mode before reading. Via `qcicada 0.2.2`, it enters continuous mode and discards already-buffered device input once, so the first read is not served from stale queued bytes and subsequent reads avoid reusing the prefilled one-shot `ready_bytes` buffer.
+
 **CLI mode flag:**
 ```bash
 openentropy bench qcicada --qcicada-mode sha256     # NIST conditioned

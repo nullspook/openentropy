@@ -18,7 +18,7 @@
 //! - `QCICADA_PORT` — serial port path (auto-detected if unset)
 //! - `QCICADA_TIMEOUT` — connection timeout in ms (default: 5000)
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::source::{EntropySource, Platform, Requirement, SourceCategory, SourceInfo};
 
@@ -41,6 +41,59 @@ static QCICADA_INFO: SourceInfo = SourceInfo {
     composite: false,
     is_fast: false, // USB serial init can take up to timeout_ms (default 5s)
 };
+
+trait QCicadaDevice: Send {
+    fn set_postprocess(&mut self, mode: qcicada::PostProcess) -> Result<(), qcicada::QCicadaError>;
+    fn start_continuous_fresh(&mut self) -> Result<(), qcicada::QCicadaError>;
+    fn read_continuous(&mut self, n: usize) -> Result<Vec<u8>, qcicada::QCicadaError>;
+    fn stop(&mut self) -> Result<(), qcicada::QCicadaError>;
+}
+
+impl QCicadaDevice for qcicada::QCicada {
+    fn set_postprocess(&mut self, mode: qcicada::PostProcess) -> Result<(), qcicada::QCicadaError> {
+        Self::set_postprocess(self, mode)
+    }
+
+    fn start_continuous_fresh(&mut self) -> Result<(), qcicada::QCicadaError> {
+        Self::start_continuous_fresh(self).map(|_| ())
+    }
+
+    fn read_continuous(&mut self, n: usize) -> Result<Vec<u8>, qcicada::QCicadaError> {
+        Self::read_continuous(self, n)
+    }
+
+    fn stop(&mut self) -> Result<(), qcicada::QCicadaError> {
+        Self::stop(self)
+    }
+}
+
+type DeviceHandle = Box<dyn QCicadaDevice>;
+type DeviceOpener =
+    dyn Fn(&QCicadaConfig, qcicada::PostProcess) -> Option<DeviceHandle> + Send + Sync;
+
+fn configure_device(device: &mut impl QCicadaDevice, mode: qcicada::PostProcess) -> Option<()> {
+    // Preserve prior behavior: best-effort mode set, then require a fresh
+    // continuous-mode start before the source is considered open.
+    let _ = device.set_postprocess(mode);
+    device.start_continuous_fresh().ok()?;
+    Some(())
+}
+
+fn default_device_opener(
+    config: &QCicadaConfig,
+    mode: qcicada::PostProcess,
+) -> Option<DeviceHandle> {
+    let timeout = std::time::Duration::from_millis(config.timeout_ms);
+    let port_str = config.port.as_deref();
+    let mut qrng = match qcicada::QCicada::open(port_str, Some(timeout)) {
+        Ok(q) => q,
+        Err(_) => return None,
+    };
+
+    configure_device(&mut qrng, mode)?;
+
+    Some(Box::new(qrng))
+}
 
 /// Configuration for the QCicada QRNG device.
 pub struct QCicadaConfig {
@@ -76,10 +129,11 @@ impl Default for QCicadaConfig {
 /// Entropy source backed by the QCicada USB QRNG hardware.
 pub struct QCicadaSource {
     pub config: QCicadaConfig,
-    device: Mutex<Option<qcicada::QCicada>>,
+    device: Mutex<Option<DeviceHandle>>,
     available: Mutex<Option<bool>>,
     /// Runtime-mutable mode, initialised from config.post_process.
     mode: Mutex<String>,
+    opener: Arc<DeviceOpener>,
 }
 
 impl Default for QCicadaSource {
@@ -91,11 +145,24 @@ impl Default for QCicadaSource {
             device: Mutex::new(None),
             available: Mutex::new(None),
             mode: Mutex::new(mode),
+            opener: Arc::new(default_device_opener),
         }
     }
 }
 
 impl QCicadaSource {
+    #[cfg(test)]
+    fn with_opener(config: QCicadaConfig, opener: Arc<DeviceOpener>) -> Self {
+        let mode = config.post_process.clone();
+        Self {
+            config,
+            device: Mutex::new(None),
+            available: Mutex::new(None),
+            mode: Mutex::new(mode),
+            opener,
+        }
+    }
+
     /// Parse the current runtime mode into the crate enum.
     fn post_process_mode(&self) -> qcicada::PostProcess {
         let mode = self.mode.lock().unwrap_or_else(|e| e.into_inner());
@@ -106,20 +173,26 @@ impl QCicadaSource {
         }
     }
 
-    /// Try to open the QCicada device with the current config and set post-processing mode.
-    fn try_open(&self) -> Option<qcicada::QCicada> {
-        let timeout = std::time::Duration::from_millis(self.config.timeout_ms);
+    fn stop_device(device: &mut Option<DeviceHandle>) {
+        if let Some(qrng) = device.as_mut() {
+            let _ = qrng.stop();
+        }
+        *device = None;
+    }
 
-        let port_str = self.config.port.as_deref();
-        let mut qrng = match qcicada::QCicada::open(port_str, Some(timeout)) {
-            Ok(q) => q,
-            Err(_) => return None,
-        };
+    /// Try to open the QCicada device, set post-processing mode, and switch the
+    /// hardware into fresh-start continuous mode so the first read discards
+    /// queued bytes and subsequent reads do not drain the device's static
+    /// one-shot `ready_bytes` buffer.
+    fn try_open(&self) -> Option<DeviceHandle> {
+        (self.opener)(&self.config, self.post_process_mode())
+    }
+}
 
-        // Set the desired post-processing mode on the device.
-        let _ = qrng.set_postprocess(self.post_process_mode());
-
-        Some(qrng)
+impl Drop for QCicadaSource {
+    fn drop(&mut self) {
+        let device = self.device.get_mut().unwrap_or_else(|e| e.into_inner());
+        Self::stop_device(device);
     }
 }
 
@@ -143,14 +216,9 @@ impl EntropySource for QCicadaSource {
     }
 
     fn collect(&self, n_samples: usize) -> Vec<u8> {
-        // USB serial has limited throughput; large single requests can timeout.
-        // Each `random()` call is a full protocol round-trip (START command +
-        // ACK + data read), so we want chunks large enough to amortize that
-        // overhead while staying reliable. The QCC reference implementation
-        // uses 1760-byte serial reads, but that's at a lower layer — here
-        // each call carries protocol overhead. 8192 is proven in production
-        // and keeps the per-call timeout (500 + n/10 ≈ 1.3s) well within
-        // the device's ~12.5 KB/s throughput (~655ms actual transfer).
+        // USB serial has limited throughput, so read in moderate chunks. With
+        // continuous mode active this is just a serial read, not a fresh START
+        // command each time, which avoids the device's static one-shot buffer.
         const CHUNK_SIZE: usize = 8192;
 
         let mut guard = self.device.lock().unwrap_or_else(|e| e.into_inner());
@@ -173,8 +241,8 @@ impl EntropySource for QCicadaSource {
         let mut remaining = n_samples;
 
         while remaining > 0 {
-            let chunk = remaining.min(CHUNK_SIZE) as u16;
-            let read_result = guard.as_mut().unwrap().random(chunk);
+            let chunk = remaining.min(CHUNK_SIZE);
+            let read_result = guard.as_mut().unwrap().read_continuous(chunk);
             match read_result {
                 Ok(bytes) => {
                     if bytes.is_empty() {
@@ -184,11 +252,11 @@ impl EntropySource for QCicadaSource {
                     result.extend_from_slice(&bytes);
                 }
                 Err(_) => {
-                    // Device error — reconnect and retry once.
-                    *guard = None;
+                    // Device error — reconnect, restart continuous mode, retry once.
+                    Self::stop_device(&mut guard);
                     std::thread::sleep(std::time::Duration::from_millis(300));
                     *guard = self.try_open();
-                    match guard.as_mut().map(|q| q.random(chunk)) {
+                    match guard.as_mut().map(|q| q.read_continuous(chunk)) {
                         Some(Ok(bytes)) => {
                             if bytes.is_empty() {
                                 break;
@@ -219,10 +287,9 @@ impl EntropySource for QCicadaSource {
         }
         *self.mode.lock().unwrap_or_else(|e| e.into_inner()) = value.to_string();
 
-        // Drop the current device handle so the next collect() reopens with the
-        // new mode. USB serial devices are more reliable when reconnected after
-        // a mode switch than when the mode is changed on a live connection.
-        *self.device.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        // Restart the device on the next collect() so the new mode is applied
+        // before continuous reads resume.
+        Self::stop_device(&mut self.device.lock().unwrap_or_else(|e| e.into_inner()));
         Ok(())
     }
 
@@ -237,6 +304,100 @@ impl EntropySource for QCicadaSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[derive(Default)]
+    struct FakeDeviceState {
+        set_postprocess_calls: Vec<qcicada::PostProcess>,
+        start_continuous_fresh_calls: usize,
+        read_requests: Vec<usize>,
+        stop_calls: usize,
+    }
+
+    struct FakeDevice {
+        state: Arc<Mutex<FakeDeviceState>>,
+        scripted_reads: VecDeque<Result<Vec<u8>, qcicada::QCicadaError>>,
+    }
+
+    impl QCicadaDevice for FakeDevice {
+        fn set_postprocess(
+            &mut self,
+            mode: qcicada::PostProcess,
+        ) -> Result<(), qcicada::QCicadaError> {
+            self.state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .set_postprocess_calls
+                .push(mode);
+            Ok(())
+        }
+
+        fn start_continuous_fresh(&mut self) -> Result<(), qcicada::QCicadaError> {
+            self.state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .start_continuous_fresh_calls += 1;
+            Ok(())
+        }
+
+        fn read_continuous(&mut self, n: usize) -> Result<Vec<u8>, qcicada::QCicadaError> {
+            self.state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .read_requests
+                .push(n);
+            self.scripted_reads
+                .pop_front()
+                .unwrap_or_else(|| Ok(vec![0; n]))
+        }
+
+        fn stop(&mut self) -> Result<(), qcicada::QCicadaError> {
+            self.state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .stop_calls += 1;
+            Ok(())
+        }
+    }
+
+    fn test_config(mode: &str) -> QCicadaConfig {
+        QCicadaConfig {
+            port: None,
+            timeout_ms: 5000,
+            post_process: mode.into(),
+        }
+    }
+
+    fn make_test_source(
+        mode: &str,
+        devices: Vec<(
+            Arc<Mutex<FakeDeviceState>>,
+            VecDeque<Result<Vec<u8>, qcicada::QCicadaError>>,
+        )>,
+        opened_modes: Arc<Mutex<Vec<qcicada::PostProcess>>>,
+        open_count: Arc<AtomicUsize>,
+    ) -> QCicadaSource {
+        let scripted_devices = Arc::new(Mutex::new(VecDeque::from(devices)));
+        let opener = Arc::new(move |_config: &QCicadaConfig, mode: qcicada::PostProcess| {
+            open_count.fetch_add(1, Ordering::SeqCst);
+            opened_modes
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(mode);
+            let (state, scripted_reads) = scripted_devices
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .pop_front()?;
+            let mut device = FakeDevice {
+                state,
+                scripted_reads,
+            };
+            configure_device(&mut device, mode)?;
+            Some(Box::new(device) as DeviceHandle)
+        });
+        QCicadaSource::with_opener(test_config(mode), opener)
+    }
 
     #[test]
     fn info() {
@@ -269,13 +430,7 @@ mod tests {
             timeout_ms: 3000,
             post_process: "sha256".into(),
         };
-        let mode = config.post_process.clone();
-        let src = QCicadaSource {
-            config,
-            device: Mutex::new(None),
-            available: Mutex::new(None),
-            mode: Mutex::new(mode),
-        };
+        let src = QCicadaSource::with_opener(config, Arc::new(default_device_opener));
         assert_eq!(src.config.port.as_deref(), Some("/dev/ttyUSB0"));
         assert_eq!(src.config.timeout_ms, 3000);
         assert_eq!(src.config.post_process, "sha256");
@@ -284,17 +439,7 @@ mod tests {
     #[test]
     fn post_process_mode_parsing() {
         let src = |mode: &str| {
-            let config = QCicadaConfig {
-                port: None,
-                timeout_ms: 5000,
-                post_process: mode.into(),
-            };
-            QCicadaSource {
-                config,
-                device: Mutex::new(None),
-                available: Mutex::new(None),
-                mode: Mutex::new(mode.into()),
-            }
+            QCicadaSource::with_opener(test_config(mode), Arc::new(default_device_opener))
         };
         assert!(matches!(
             src("sha256").post_process_mode(),
@@ -336,6 +481,148 @@ mod tests {
     fn source_is_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<QCicadaSource>();
+    }
+
+    #[test]
+    fn collect_uses_continuous_reads_and_chunks_large_requests() {
+        let state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let opened_modes = Arc::new(Mutex::new(Vec::new()));
+        let open_count = Arc::new(AtomicUsize::new(0));
+        let src = make_test_source(
+            "raw",
+            vec![(
+                Arc::clone(&state),
+                VecDeque::from([Ok(vec![0xAA; 8192]), Ok(vec![0xBB; 808])]),
+            )],
+            Arc::clone(&opened_modes),
+            Arc::clone(&open_count),
+        );
+
+        let data = src.collect(9000);
+        let state = state.lock().unwrap_or_else(|e| e.into_inner());
+
+        assert_eq!(data.len(), 9000);
+        assert_eq!(open_count.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *opened_modes.lock().unwrap_or_else(|e| e.into_inner()),
+            vec![qcicada::PostProcess::RawNoise]
+        );
+        assert_eq!(
+            state.set_postprocess_calls,
+            vec![qcicada::PostProcess::RawNoise]
+        );
+        assert_eq!(state.start_continuous_fresh_calls, 1);
+        assert_eq!(state.read_requests, vec![8192, 808]);
+        assert_eq!(state.stop_calls, 0);
+    }
+
+    #[test]
+    fn collect_reconnects_and_restarts_continuous_after_read_error() {
+        let first_state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let second_state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let opened_modes = Arc::new(Mutex::new(Vec::new()));
+        let open_count = Arc::new(AtomicUsize::new(0));
+        let src = make_test_source(
+            "raw",
+            vec![
+                (
+                    Arc::clone(&first_state),
+                    VecDeque::from([Err(qcicada::QCicadaError::Protocol(
+                        "simulated read failure".into(),
+                    ))]),
+                ),
+                (
+                    Arc::clone(&second_state),
+                    VecDeque::from([Ok(vec![0x5A; 64])]),
+                ),
+            ],
+            Arc::clone(&opened_modes),
+            Arc::clone(&open_count),
+        );
+
+        let data = src.collect(64);
+        let first_state = first_state.lock().unwrap_or_else(|e| e.into_inner());
+        let second_state = second_state.lock().unwrap_or_else(|e| e.into_inner());
+
+        assert_eq!(data, vec![0x5A; 64]);
+        assert_eq!(open_count.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *opened_modes.lock().unwrap_or_else(|e| e.into_inner()),
+            vec![
+                qcicada::PostProcess::RawNoise,
+                qcicada::PostProcess::RawNoise
+            ]
+        );
+        assert_eq!(first_state.start_continuous_fresh_calls, 1);
+        assert_eq!(first_state.read_requests, vec![64]);
+        assert_eq!(first_state.stop_calls, 1);
+        assert_eq!(second_state.start_continuous_fresh_calls, 1);
+        assert_eq!(second_state.read_requests, vec![64]);
+    }
+
+    #[test]
+    fn set_config_stops_active_device_and_reopens_with_new_mode() {
+        let first_state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let second_state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let opened_modes = Arc::new(Mutex::new(Vec::new()));
+        let open_count = Arc::new(AtomicUsize::new(0));
+        let src = make_test_source(
+            "raw",
+            vec![
+                (
+                    Arc::clone(&first_state),
+                    VecDeque::from([Ok(vec![0x11; 4])]),
+                ),
+                (
+                    Arc::clone(&second_state),
+                    VecDeque::from([Ok(vec![0x22; 4])]),
+                ),
+            ],
+            Arc::clone(&opened_modes),
+            Arc::clone(&open_count),
+        );
+
+        assert_eq!(src.collect(4), vec![0x11; 4]);
+        assert!(src.set_config("mode", "sha256").is_ok());
+        assert!(
+            src.device
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_none()
+        );
+        assert_eq!(src.collect(4), vec![0x22; 4]);
+
+        let first_state = first_state.lock().unwrap_or_else(|e| e.into_inner());
+        let second_state = second_state.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(first_state.stop_calls, 1);
+        assert_eq!(
+            *opened_modes.lock().unwrap_or_else(|e| e.into_inner()),
+            vec![qcicada::PostProcess::RawNoise, qcicada::PostProcess::Sha256]
+        );
+        assert_eq!(
+            second_state.set_postprocess_calls,
+            vec![qcicada::PostProcess::Sha256]
+        );
+        assert_eq!(open_count.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn drop_stops_active_device() {
+        let state = Arc::new(Mutex::new(FakeDeviceState::default()));
+        let opened_modes = Arc::new(Mutex::new(Vec::new()));
+        let open_count = Arc::new(AtomicUsize::new(0));
+        let src = make_test_source(
+            "raw",
+            vec![(Arc::clone(&state), VecDeque::from([Ok(vec![0x33; 8])]))],
+            opened_modes,
+            open_count,
+        );
+
+        assert_eq!(src.collect(8), vec![0x33; 8]);
+        drop(src);
+
+        let state = state.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(state.stop_calls, 1);
     }
 
     #[test]

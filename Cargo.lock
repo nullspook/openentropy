@@ -1105,7 +1105,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "openentropy-cli"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "clap",
  "crossterm",
@@ -1123,7 +1123,7 @@ dependencies = [
 
 [[package]]
 name = "openentropy-core"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "flate2",
  "getrandom 0.3.4",
@@ -1140,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "openentropy-python"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "openentropy-core",
  "openentropy-tests",
@@ -1152,7 +1152,7 @@ dependencies = [
 
 [[package]]
 name = "openentropy-server"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "axum",
  "openentropy-core",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "openentropy-tests"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "flate2",
  "rustfft",
@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "openentropy-wasm"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "js-sys",
  "sha2",
@@ -1392,9 +1392,9 @@ dependencies = [
 
 [[package]]
 name = "qcicada"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2de1c09486d02cac7384aece7ca959eeeab833328ed7f960070a7e6e4304c465"
+checksum = "44cee19ec61b5492ad5f6e076cbebc9b990ad79bd1eb5f1a559a36a460acb730"
 dependencies = [
  "log",
  "p256",

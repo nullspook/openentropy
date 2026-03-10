@@ -49,7 +49,7 @@ openentropy monitor
 
 Most OpenEntropy sources come from the host machine itself. OpenEntropy also supports external hardware devices when they are attached and discoverable:
 
-- **Crypta Labs QCicada USB QRNG** — exposed as the `qcicada` source. OpenEntropy can read the device's quantum output and benchmark, analyze, record, or compare it alongside on-host sources. The device's own output modes map to `raw`, `sha256`, and `samples`. See the [QCicada manual](https://cryptalabs.com/support/docs/qcicada/).
+- **Crypta Labs QCicada USB QRNG** — exposed as the `qcicada` source. OpenEntropy can read the device's quantum output and benchmark, analyze, record, or compare it alongside on-host sources. The device's own output modes map to `raw`, `sha256`, and `samples`, and OpenEntropy now uses QCicada's fresh-start continuous-mode helper from `qcicada 0.2.2`, so it discards already-buffered device input once after entering continuous mode instead of serving the first read from stale queued bytes. See the [QCicada manual](https://cryptalabs.com/support/docs/qcicada/).
 
 ### Python
 

@@ -10,7 +10,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.12.2"
+version = "0.12.3"
 edition = "2024"
 license = "MIT"
 authors = ["Amenti Labs"]
@@ -56,13 +56,13 @@ uuid = { version = "1", features = ["v4"] }
 ctrlc = "3"
 
 # Hardware
-qcicada = "0.2.1"
+qcicada = "0.2.2"
 
 # Testing
 statrs = "0.18"
 rustfft = "6"
 
 # Internal
-openentropy-core = { path = "crates/openentropy-core", version = "0.12.2" }
-openentropy-server = { path = "crates/openentropy-server", version = "0.12.2" }
-openentropy-tests = { path = "crates/openentropy-tests", version = "0.12.2" }
+openentropy-core = { path = "crates/openentropy-core", version = "0.12.3" }
+openentropy-server = { path = "crates/openentropy-server", version = "0.12.3" }
+openentropy-tests = { path = "crates/openentropy-tests", version = "0.12.3" }

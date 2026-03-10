@@ -1,10 +1,17 @@
 # Changelog
 
+## 0.12.3 — 2026-03-10
+
+### Changed
+- Bumped the `qcicada` dependency to `0.2.2`.
+- QCicada collection now enters device continuous mode through `start_continuous_fresh()`, discarding already-buffered device input once after mode entry so the first read is fresher.
+
 ## 0.12.2 — 2026-03-09
 
 ### Fixed
 - Included the synchronized `Cargo.lock` workspace version updates required for release publishing.
 - Re-cut the 0.12.x patch release so the crates.io publish job can run with `--locked`.
+- QCicada collection now uses the device's continuous mode instead of repeated one-shot reads, avoiding stale data from the prefilled `ready_bytes` buffer between requests.
 
 ## 0.12.1 — 2026-03-09
 
